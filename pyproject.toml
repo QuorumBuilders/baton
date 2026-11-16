@@ -1,0 +1,11 @@
+[project]
+name = "baton"
+version = "0.1.0"
+description = "Baton health-tech platform, built with Django."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "django>=5.2,<5.3",
+    "phonenumberslite>=9.0.43",
+    "python-dotenv>=1.2.4",
+]

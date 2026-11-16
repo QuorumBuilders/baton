@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Verify your phone | Baton{% endblock %}
+{% block content %}
+  <section class="account-page" aria-labelledby="page-title">
+    <p class="eyebrow">Vendor registration &middot; Step 2 of 3</p>
+    <h1 id="page-title">Verify your phone</h1>
+    <p>Enter the six-digit code sent to the phone number you provided.</p>
+    <form method="post">
+      {% csrf_token %}
+      {% include "accounts/_form_fields.html" %}
+      <button type="submit">Verify phone number</button>
+    </form>
+    <p class="form-links">Need another code? Wait at least {{ resend_cooldown }} seconds between requests.</p>
+    <form method="post" action="{% url 'accounts:resend' %}">
+      {% csrf_token %}
+      <button class="secondary" type="submit">Resend code</button>
+    </form>
+    <p class="form-links"><a href="{% url 'accounts:register' %}">Use a different phone number</a>.</p>
+  </section>
+{% endblock %}

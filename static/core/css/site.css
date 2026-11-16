@@ -1,0 +1,206 @@
+:root {
+  color-scheme: light;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #172b40;
+  background: #f8fafc;
+  line-height: 1.6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+a {
+  color: #084b97;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 3px solid #084b97;
+  outline-offset: 5px;
+}
+
+.skip-link {
+  position: absolute;
+  top: 0.5rem;
+  left: 1rem;
+  padding: 0.75rem 1rem;
+  transform: translateY(-200%);
+  background: #fff;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.site-header,
+main,
+.site-footer {
+  width: min(100%, 68rem);
+  margin-inline: auto;
+  padding-inline: clamp(1.25rem, 5vw, 3rem);
+}
+
+.site-header {
+  padding-block: 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 44px;
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.brand img {
+  display: block;
+}
+
+main {
+  flex: 1;
+  padding-block: clamp(3rem, 10vw, 7rem);
+}
+
+.intro {
+  max-width: 42rem;
+}
+
+.eyebrow {
+  margin: 0 0 1rem;
+  color: #084b97;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+h1 {
+  margin: 0 0 1.5rem;
+  font-size: clamp(2.25rem, 7vw, 4.5rem);
+  line-height: 1.12;
+  letter-spacing: -0.035em;
+  overflow-wrap: break-word;
+}
+
+p {
+  margin: 0 0 1rem;
+}
+
+.lead {
+  font-size: clamp(1.125rem, 3vw, 1.375rem);
+}
+
+.site-footer {
+  padding-block: 1.5rem;
+  color: #526477;
+  font-size: 0.875rem;
+}
+
+.site-footer p {
+  margin: 0;
+}
+
+nav {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+.account-page {
+  max-width: 30rem;
+  overflow-wrap: anywhere;
+}
+
+.account-page h1 {
+  font-size: clamp(1.75rem, 5vw, 2.25rem);
+}
+
+.form-field {
+  margin-block: 1.25rem;
+}
+
+label {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-weight: 600;
+}
+
+input:not([type="hidden"]),
+select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.65rem;
+  border: 1px solid #6c7c8c;
+  border-radius: 0.25rem;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+}
+
+button {
+  min-height: 44px;
+  padding: 0.65rem 1rem;
+  border: 1px solid #084b97;
+  border-radius: 0.25rem;
+  background: #084b97;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #063d7b;
+}
+
+button.secondary {
+  background: transparent;
+  color: #084b97;
+}
+
+button.secondary:hover {
+  background: #e8eef5;
+}
+
+.helptext {
+  margin-block: 0.4rem 0.75rem;
+  color: #526477;
+  font-size: 0.875rem;
+}
+
+.errorlist {
+  padding-left: 1.25rem;
+  color: #9b1c1c;
+}
+
+.messages {
+  padding: 1rem 1rem 1rem 2rem;
+  border-left: 3px solid #084b97;
+  background: #e8eef5;
+}
+
+.form-links {
+  margin-top: 1.5rem;
+}

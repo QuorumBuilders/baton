@@ -1,0 +1,48 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="{% block description %}Baton is a health-tech platform built around continuity of care.{% endblock %}">
+    <title>{% block title %}Baton | Continuity of care{% endblock %}</title>
+    <link rel="icon" href="{% static 'core/images/baton.svg' %}" type="image/svg+xml">
+    <link rel="stylesheet" href="{% static 'core/css/site.css' %}">
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <header class="site-header">
+      <a class="brand" href="{% url 'core:landing' %}" aria-label="Baton home">
+        <img src="{% static 'core/images/baton.svg' %}" alt="" width="36" height="38">
+        <span>Baton</span>
+      </a>
+      <nav aria-label="Account navigation">
+        {% if user.is_authenticated %}
+          {% if user.account_type == "vendor" %}
+            <a href="{% url 'accounts:dashboard' %}">Your business</a>
+          {% elif user.is_staff %}
+            <a href="{% url 'admin:index' %}">Administration</a>
+          {% endif %}
+          <form method="post" action="{% url 'accounts:logout' %}">
+            {% csrf_token %}
+            <button class="secondary" type="submit">Log out</button>
+          </form>
+        {% else %}
+          <a href="{% url 'accounts:login' %}">Log in</a>
+          <a href="{% url 'accounts:register' %}">Register</a>
+        {% endif %}
+      </nav>
+    </header>
+    <main id="main-content" tabindex="-1">
+      {% if messages %}
+        <ul class="messages" aria-live="polite">
+          {% for message in messages %}<li>{{ message }}</li>{% endfor %}
+        </ul>
+      {% endif %}
+      {% block content %}{% endblock %}
+    </main>
+    <footer class="site-footer">
+      <p>&copy; {% now "Y" %} Baton</p>
+    </footer>
+  </body>
+</html>

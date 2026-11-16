@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Log out | Baton{% endblock %}
+{% block content %}
+  <section class="account-page" aria-labelledby="page-title">
+    <h1 id="page-title">Log out of Baton?</h1>
+    <p>You can log in again with your account details.</p>
+    <form method="post">
+      {% csrf_token %}
+      <button type="submit">Log out</button>
+    </form>
+  </section>
+{% endblock %}
