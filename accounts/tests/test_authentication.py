@@ -35,6 +35,17 @@ class AuthenticationTests(TestCase):
             with self.subTest(number=number):
                 self.assertEqual(authenticate(phone_number=number, password="482953"), self.vendor)
 
+    def test_existing_fixed_line_vendor_can_still_authenticate(self):
+        fixed_line_vendor = User.objects.create_user(
+            phone_number="02012345678",
+            business_name="Legacy Fixed Line Pharmacy",
+            password="482953",
+        )
+        self.assertEqual(
+            authenticate(phone_number="02012345678", password="482953"),
+            fixed_line_vendor,
+        )
+
     def test_vendor_cannot_authenticate_with_business_name_or_username(self):
         self.assertIsNone(authenticate(username="vendor-alias", password="482953"))
         self.assertIsNone(authenticate(phone_number="Community Pharmacy", password="482953"))

@@ -28,7 +28,9 @@ class RegistrationError(Exception):
     pass
 
 
-def issue_otp(phone_number):
+def issue_otp(phone_number, *, purpose="vendor"):
+    if purpose not in {"vendor", "patient"}:
+        raise ValueError("Unsupported verification purpose.")
     phone_number = normalize_phone_number(phone_number)
     delivery = get_delivery_backend()
     # Hash for every valid request, including registered numbers and cooldowns,
@@ -39,19 +41,20 @@ def issue_otp(phone_number):
     with transaction.atomic():
         previous = (
             PhoneVerification.objects.select_for_update()
-            .filter(phone_number=phone_number)
+            .filter(phone_number=phone_number, purpose=purpose)
             .order_by("-created_at")
             .first()
         )
         if previous and now < previous.created_at + timedelta(seconds=settings.OTP_RESEND_COOLDOWN_SECONDS):
             raise ResendCooldown("Please wait before requesting another code.")
-        if User.objects.filter(account_type=User.AccountType.VENDOR, phone_number=phone_number).exists():
+        if purpose == "vendor" and User.objects.filter(account_type=User.AccountType.VENDOR, phone_number=phone_number).exists():
             return None
         PhoneVerification.objects.filter(
-            phone_number=phone_number, completed_at__isnull=True, invalidated_at__isnull=True
+            phone_number=phone_number, purpose=purpose, completed_at__isnull=True, invalidated_at__isnull=True
         ).update(invalidated_at=now)
         verification = PhoneVerification.objects.create(
             phone_number=phone_number,
+            purpose=purpose,
             token_hash=token_hash,
             expires_at=now + timedelta(seconds=settings.OTP_TTL_SECONDS),
         )
@@ -59,10 +62,10 @@ def issue_otp(phone_number):
     return verification
 
 
-def _current_verification(verification_id, phone_number):
+def _current_verification(verification_id, phone_number, *, purpose="vendor"):
     try:
         phone_number = normalize_phone_number(phone_number)
-        verification = PhoneVerification.objects.get(pk=verification_id, phone_number=phone_number)
+        verification = PhoneVerification.objects.get(pk=verification_id, phone_number=phone_number, purpose=purpose)
     except (PhoneVerification.DoesNotExist, ValidationError, ValueError, TypeError):
         raise VerificationError("The verification is unavailable. Request a new code.") from None
     if (
@@ -74,8 +77,8 @@ def _current_verification(verification_id, phone_number):
     return verification
 
 
-def verify_otp(verification_id, phone_number, code):
-    verification = _current_verification(verification_id, phone_number)
+def verify_otp(verification_id, phone_number, code, *, purpose="vendor"):
+    verification = _current_verification(verification_id, phone_number, purpose=purpose)
     if verification.consumed_at is not None or verification.attempts >= settings.OTP_MAX_ATTEMPTS:
         raise VerificationError("The code could not be verified. Request a new code.")
     outstanding = PhoneVerification.objects.filter(
@@ -97,8 +100,8 @@ def verify_otp(verification_id, phone_number, code):
     return verification
 
 
-def get_verified_registration(verification_id, phone_number):
-    verification = _current_verification(verification_id, phone_number)
+def get_verified_registration(verification_id, phone_number, *, purpose="vendor"):
+    verification = _current_verification(verification_id, phone_number, purpose=purpose)
     if verification.consumed_at is None:
         raise VerificationError("Verify your phone number before creating an account.")
     return verification

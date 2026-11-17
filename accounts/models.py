@@ -7,7 +7,7 @@ from django.db import models
 from django.db.models import Q
 
 from .managers import UserManager
-from .phone_numbers import normalize_phone_number
+from .phone_numbers import local_phone_number, normalize_phone_number
 
 
 class User(AbstractUser):
@@ -107,12 +107,15 @@ class User(AbstractUser):
     def __str__(self):
         if self.account_type == self.AccountType.ADMINISTRATOR:
             return self.username
-        return f"{self.business_name} ({self.phone_number})"
+        return f"{self.business_name} ({local_phone_number(self.phone_number)})"
 
 
 class PhoneVerification(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     phone_number = models.CharField(max_length=16, db_index=True)
+    purpose = models.CharField(
+        max_length=7, choices=[("vendor", "Vendor"), ("patient", "Patient")], default="vendor"
+    )
     token_hash = models.CharField(max_length=128)
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
@@ -124,7 +127,7 @@ class PhoneVerification(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=["phone_number"],
+                fields=["phone_number", "purpose"],
                 condition=Q(consumed_at__isnull=True, invalidated_at__isnull=True),
                 name="one_outstanding_phone_verification",
             ),

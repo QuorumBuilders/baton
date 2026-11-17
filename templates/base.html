@@ -20,6 +20,7 @@
         {% if user.is_authenticated %}
           {% if user.account_type == "vendor" %}
             <a href="{% url 'accounts:dashboard' %}">Your business</a>
+            <a href="{% url 'patients:list' %}">Patients</a>
           {% elif user.is_staff %}
             <a href="{% url 'admin:index' %}">Administration</a>
           {% endif %}

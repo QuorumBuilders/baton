@@ -24,7 +24,8 @@ a {
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,
-select:focus-visible {
+select:focus-visible,
+textarea:focus-visible {
   outline: 3px solid #084b97;
   outline-offset: 5px;
 }
@@ -75,7 +76,7 @@ main,
 
 main {
   flex: 1;
-  padding-block: clamp(3rem, 10vw, 7rem);
+  padding-block: clamp(2rem, 7vw, 5rem);
 }
 
 .intro {
@@ -133,6 +134,15 @@ nav a {
   overflow-wrap: anywhere;
 }
 
+.page {
+  width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.page.narrow {
+  max-width: 42rem;
+}
+
 .account-page h1 {
   font-size: clamp(1.75rem, 5vw, 2.25rem);
 }
@@ -147,7 +157,7 @@ label {
   font-weight: 600;
 }
 
-input:not([type="hidden"]),
+input:not([type="hidden"]):not([type="radio"]):not([type="checkbox"]),
 select {
   width: 100%;
   min-height: 44px;
@@ -157,6 +167,27 @@ select {
   background: #fff;
   color: inherit;
   font: inherit;
+}
+
+input[type="radio"],
+input[type="checkbox"] {
+  width: 1.2rem;
+  height: 1.2rem;
+  margin-right: 0.5rem;
+  vertical-align: middle;
+}
+
+.form-field fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.form-field fieldset label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.25rem;
+  font-weight: 400;
 }
 
 button {
@@ -203,4 +234,230 @@ button.secondary:hover {
 
 .form-links {
   margin-top: 1.5rem;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0.65rem 1rem;
+  border: 1px solid #084b97;
+  border-radius: 0.25rem;
+  background: #084b97;
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.button:hover {
+  background: #063d7b;
+}
+
+.button-row,
+.inline-form,
+.page-heading,
+.section-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.page-heading,
+.section-heading {
+  justify-content: space-between;
+}
+
+.page-heading {
+  margin-bottom: 2rem;
+}
+
+.page-heading h1,
+.section-heading h2 {
+  margin-bottom: 0;
+}
+
+.search-form {
+  max-width: 42rem;
+  margin-bottom: 2rem;
+}
+
+.inline-form {
+  align-items: stretch;
+}
+
+.inline-form input {
+  flex: 1 1 16rem;
+}
+
+.record-list,
+.timeline {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.record-list > li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid #d7e0e8;
+}
+
+.record-list > li > div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.record-list.compact > li {
+  padding-block: 0.75rem;
+}
+
+.record-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.empty-state,
+.summary-card,
+.warning {
+  padding: 1.25rem;
+  border: 1px solid #d7e0e8;
+  border-radius: 0.4rem;
+  background: #fff;
+}
+
+.empty-state h2,
+.summary-card h2 {
+  margin-top: 0;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: 1rem;
+}
+
+.dashboard-grid {
+  margin-top: 2rem;
+}
+
+.details-list,
+.measurement-review {
+  margin: 0;
+}
+
+.details-list > div,
+.measurement-review > div {
+  display: grid;
+  grid-template-columns: minmax(8rem, 0.8fr) 1fr;
+  gap: 1rem;
+  padding-block: 0.5rem;
+  border-bottom: 1px solid #e7edf2;
+}
+
+dt {
+  font-weight: 600;
+}
+
+dd {
+  margin: 0;
+}
+
+.metric {
+  margin-bottom: 0.5rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.status {
+  display: inline-block;
+  width: fit-content;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.25rem;
+  background: #fff2cc;
+  color: #684f00;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.status-attention {
+  background: #fde8e8;
+  color: #8c1d1d;
+}
+
+.content-section {
+  margin-top: 2.5rem;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 0.75rem;
+  border-bottom: 1px solid #d7e0e8;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background: #eef3f7;
+}
+
+.pagination {
+  justify-content: space-between;
+  margin-top: 1.5rem;
+}
+
+.timeline > li {
+  margin-bottom: 1.25rem;
+  padding: 1.25rem;
+  border-left: 3px solid #084b97;
+  background: #fff;
+}
+
+.timeline h2 {
+  margin-top: 0;
+  font-size: 1.25rem;
+}
+
+.warning {
+  margin-bottom: 1.5rem;
+  border-color: #b7791f;
+  background: #fffaf0;
+}
+
+.measurement-review {
+  margin-bottom: 1.5rem;
+}
+
+@media (max-width: 36rem) {
+  .site-header {
+    align-items: flex-start;
+  }
+
+  .site-header nav {
+    width: 100%;
+  }
+
+  .record-list > li,
+  .details-list > div,
+  .measurement-review > div {
+    align-items: flex-start;
+    grid-template-columns: 1fr;
+  }
+
+  .record-list > li {
+    flex-direction: column;
+  }
 }

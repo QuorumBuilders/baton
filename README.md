@@ -2,9 +2,9 @@
 
 Baton is a health-tech platform built as a single Django monolith. It provides a
 public landing page, verified vendor registration, session authentication and
-Django administration. The frontend uses Django Templates, HTML and CSS;
-registration, login and logout work without JavaScript. The vendor dashboard is
-a placeholder for future functionality.
+Django administration, plus vendor-facing patient registration, blood pressure
+history and centralized follow-up coordination. The frontend uses Django
+Templates, HTML and CSS; all core workflows work without JavaScript.
 
 ## Prerequisites
 
@@ -72,7 +72,7 @@ Django's standard authentication, CSRF protection, security middleware and
 password validators are enabled. Session and CSRF cookies require HTTPS when
 debugging is disabled.
 
-Apply the initial Django migrations:
+Apply the Django migrations:
 
 ```sh
 uv run python manage.py migrate
@@ -92,6 +92,8 @@ uv run python manage.py runserver
 
 - Landing page: <http://127.0.0.1:8000/>
 - Django admin: <http://127.0.0.1:8000/admin/>
+- Vendor dashboard: <http://127.0.0.1:8000/accounts/dashboard/>
+- Patient list: <http://127.0.0.1:8000/patients/>
 
 The admin uses Django's permission system and requires an active administrator
 with staff privileges. Account type alone never grants access. The account list
@@ -135,7 +137,7 @@ control of administrative access.
 - Vendor login: <http://127.0.0.1:8000/login/>
 - Administrator entry point: <http://127.0.0.1:8000/admin/>
 - Vendor registration: <http://127.0.0.1:8000/accounts/register/>
-- Vendor placeholder: <http://127.0.0.1:8000/accounts/dashboard/>
+- Vendor dashboard: <http://127.0.0.1:8000/accounts/dashboard/>
 - Logout confirmation: <http://127.0.0.1:8000/accounts/logout/>
 
 Logout occurs only through a CSRF-protected POST. Protected vendor pages require
@@ -154,11 +156,13 @@ need appropriate Django permissions to use administrative functionality.
 
 ## Phone normalization
 
-The vendor phone number is the primary identity and login identifier. Nigerian
-mobile and current fixed-line numbers are supported. Local `08012345678`,
-international `+2348012345678`, `2348012345678` and `002348012345678` all normalize
-to `+2348012345678`. Spaces, parentheses and hyphens are accepted. Stored numbers
-use E.164, and uniqueness is checked after normalization.
+The vendor phone number is the primary identity and login identifier. New vendor
+and patient registrations require a valid Nigerian mobile number. Existing
+vendor accounts with a valid Nigerian fixed-line number remain able to log in.
+Local `08012345678`, international `+2348012345678`, `2348012345678` and
+`002348012345678` all normalize to `+2348012345678`. Spaces, parentheses and
+hyphens are accepted. Stored numbers use E.164, uniqueness is checked after
+normalization, and vendor-facing pages display Nigerian local format.
 
 Invalid numbers, unsupported service numbers, foreign numbers and alphabetic
 representations are rejected. The same normalization function is used by forms,
@@ -167,7 +171,7 @@ the user model, verification services and authentication.
 ## Vendor registration and development OTPs
 
 1. With `DJANGO_DEBUG=True`, start the development server and open registration.
-2. Enter a Nigerian phone number and a pharmacy/chemist business name.
+2. Enter a Nigerian mobile number and a pharmacy/chemist business name.
 3. Read the six-digit OTP in the **development server console**, then submit it
    on the verification page. It is never included in HTTP responses.
 4. Create and confirm a password or six-digit PIN. The verified account is
@@ -190,7 +194,9 @@ OTP rules live in `accounts/services.py`, separately from views:
   flag alone cannot bypass the database verification check.
 - Registration and credential errors avoid disclosing whether an account exists.
 
-`PhoneVerification.consumed_at` records successful OTP verification;
+Vendor and patient OTP records are separated by purpose, so one flow cannot use
+the other flow's verification grant. `PhoneVerification.consumed_at` records
+successful OTP verification;
 `completed_at` records account creation and `invalidated_at` records replacement.
 OTP records and hashes are not registered in Django admin. Verification and
 credential pages are not cached, and submitted OTP/password values are not
@@ -209,6 +215,80 @@ when debugging is disabled even if explicitly configured. With `DEBUG=False`,
 the default delivery setting is empty and registration reports that verification
 is unavailable. **Production SMS verification requires a future provider
 integration.** No external SMS provider is integrated in this phase.
+
+## Patient management
+
+Each patient has one global UUID-based record, matched by their normalized mobile
+number. A record includes the required name, date of birth and preferred language,
+optional sex and alternative contact number, and explicit SMS and voice consent
+with audit timestamps. Patients do not receive application accounts.
+
+Vendors see only patients associated with their account. Registering a new patient
+requires patient-phone OTP verification and automatically creates the first vendor
+association. If the number already belongs to a Baton patient, no new record or OTP
+is created. The vendor must confirm that the patient agreed to the association and
+sharing of relevant Baton history; Baton records the confirming vendor and time.
+All associated vendors can then see the patient's complete Baton BP and follow-up
+history, while each historical entry retains its original vendor attribution.
+
+The main routes are:
+
+- `/patients/` for the associated-patient list and name/phone search.
+- `/patients/register/` for new-patient discovery, OTP registration or association.
+- `/patients/<patient-id>/` for patient information, BP history and active follow-up.
+- `/patients/<patient-id>/measurements/new/` for the BP review-and-confirm workflow.
+- `/patients/<patient-id>/follow-ups/` for complete follow-up history.
+
+Every patient route checks the authenticated vendor association server-side.
+Unrelated vendors receive no patient record through direct URL access.
+
+## BP measurements and follow-ups
+
+A BP measurement stores systolic and diastolic pressure, optional pulse, the
+recording vendor and an automatic timestamp. The vendor reviews the entered values
+and sees an explicit immutability warning before saving. Saved measurements have no
+ordinary edit or delete operation and remain part of the permanent patient history.
+
+Saving a measurement fulfils the patient's previous active follow-up, even when a
+different associated vendor records it or the scheduled date has not arrived. Baton
+then previews the next automatic date. The initial approved rule is 21 days after
+the new measurement; administrators can deactivate it and create a new versioned
+interval in Django admin. Existing follow-ups retain their original scheduled date
+and rule/version. A vendor can accept the proposed date or choose a manual date,
+and only one active follow-up is allowed per patient.
+
+Changing an active follow-up date creates a recorded manual schedule revision and
+recalculates its outstanding reminders. Measurement confirmation uses an operation
+identifier, transactions and database constraints so retries do not create duplicate
+measurements or active follow-ups.
+
+## Reminder coordination
+
+Follow-ups and reminders are separate records. For a 21-day interval, Baton creates
+medication/general-health reminder schedules at days 7 and 14, followed by visit
+reminders on the follow-up date and at 2 and 4 days overdue. Shorter intervals use
+one between-visit reminder; intervals of 21 days or longer use two distributed
+through the interval. These schedules do not prescribe medication, specify doses,
+interpret BP values or alter treatment instructions.
+
+Each schedule records its patient, follow-up, category, event, channel, revision,
+processing state and delivery state. A new measurement cancels all outstanding
+reminders for the fulfilled follow-up. Repeated processing is idempotent. A manual
+follow-up becoming overdue creates one dashboard notification for the vendor who
+scheduled it; after the final overdue reminder, all associated vendors can see that
+the patient requires attention.
+
+No SMS or voice provider and no background worker are integrated. In Django admin,
+select reminder schedules and run **Process all due reminder schedules now** to
+exercise the provider-independent processing boundary. The action records processing
+only; it does not send messages and leaves delivery as not attempted.
+
+## Phase 3 administration
+
+Django admin provides patient and vendor-association management, read-only BP and
+follow-up history, versioned follow-up rule configuration, schedule-change history,
+reminder schedules and vendor notifications. Vendor accounts never receive staff
+privileges through these workflows.
 
 ## Database transition from Phase 1
 
@@ -233,11 +313,12 @@ uv run python manage.py makemigrations --check --dry-run
 uv run python manage.py findstatic core/css/site.css core/images/baton.svg
 ```
 
-The complete suite covers Phase 1 behavior, environment loading, account creation,
-database constraints, phone normalization/uniqueness, OTP expiration and reuse,
-attempt and resend limits, registration binding, credential/session authentication,
-CSRF protection, admin access and vendor privilege restrictions. Tests use a
-separate Django test database and mocked OTP delivery, without external SMS.
+The complete suite covers the earlier landing, configuration and authentication
+behavior as well as patient registration and discovery, OTP purpose isolation,
+association consent, access control, immutable measurements, centralized follow-up
+fulfilment, rule versioning, manual scheduling, reminder timing and recalculation,
+overdue visibility, cancellation and idempotency. Tests use a separate Django test
+database and mocked OTP delivery, without external SMS or voice calls.
 
 ## Static files
 
@@ -253,8 +334,8 @@ uv run python manage.py collectstatic --noinput
 
 Collected files go to the ignored `staticfiles/` directory. With debugging
 disabled, configure the deployment's web server to serve that directory at
-`/static/`. The development server is for local development; deployment setup
-is outside Phase 1.
+`/static/`. The development server is for local development; deployment setup is
+outside the current prototype scope.
 
 The landing page uses a small SVG copied from the supplied `SVG/coloured.svg`
 and system fonts. Original assets in `SVG/` and `3x/` remain available.
@@ -275,12 +356,16 @@ baton/
   config/                    Django settings, URLs, WSGI and ASGI entry points
   accounts/                  Custom user, authentication, OTP services, forms and tests
     migrations/
+  patients/                  Patients, associations, BP, follow-ups and reminders
+    migrations/
+    tests/
   core/                      Landing-page view, URLs, app configuration and tests
     migrations/
   templates/
     base.html                Shared page layout
     core/landing.html
-    accounts/                Registration, verification, credentials, login/logout and placeholder
+    accounts/                Registration, verification, credentials, login/logout and dashboard
+    patients/                Patient, measurement and follow-up pages
   static/core/
     css/site.css
     images/baton.svg
@@ -289,6 +374,6 @@ baton/
 ```
 
 Read `AGENTS.md` before changing the project and follow
-`.agents/skills/ui/SKILL.md` for UI work. Facility management, patient records,
-blood pressure monitoring, follow-ups, reminders, voice calls and external SMS
-integrations are outside Phase 2.
+`.agents/skills/ui/SKILL.md` for UI work. Facility ownership, branches, staff
+accounts, clinical diagnosis or recommendations, real patient messaging and
+background scheduling remain outside the current scope.

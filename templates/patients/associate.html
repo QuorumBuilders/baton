@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Add existing patient | Baton{% endblock %}
+{% block content %}
+  <section class="account-page" aria-labelledby="page-title">
+    <p class="eyebrow">Existing Baton patient</p>
+    <h1 id="page-title">Add this patient?</h1>
+    <p>A patient record already exists for <strong>{{ phone }}</strong>. Another verification code is not required.</p>
+    <p>Confirm the patient&rsquo;s agreement before their relevant Baton history is shared with your vendor account.</p>
+    <form method="post">
+      {% csrf_token %}
+      {% include "accounts/_form_fields.html" %}
+      <div class="button-row">
+        <button type="submit" name="decision" value="confirm">Add patient</button>
+        <button class="secondary" type="submit" name="decision" value="decline">Do not add</button>
+      </div>
+    </form>
+  </section>
+{% endblock %}

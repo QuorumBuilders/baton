@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Confirm BP measurement | Baton{% endblock %}
+{% block content %}
+  <section class="page narrow" aria-labelledby="page-title">
+    <p class="eyebrow">{{ patient.first_name }} {{ patient.last_name }}</p>
+    <h1 id="page-title">Confirm measurement</h1>
+    <div class="warning" role="alert">
+      <strong>Once saved, this measurement cannot be edited. Please verify the values before continuing.</strong>
+    </div>
+    <dl class="measurement-review">
+      <div><dt>Systolic</dt><dd>{{ values.systolic }} mmHg</dd></div>
+      <div><dt>Diastolic</dt><dd>{{ values.diastolic }} mmHg</dd></div>
+      <div><dt>Pulse</dt><dd>{% if values.pulse %}{{ values.pulse }} beats per minute{% else %}Not recorded{% endif %}</dd></div>
+    </dl>
+    {% if proposed_date %}
+      <p>The configured automatic follow-up date is <strong>{{ proposed_date|date:"j M Y" }}</strong>. Accept it or specify a manual date.</p>
+    {% else %}
+      <p>No active automatic scheduling rule is available. Specify a manual follow-up date to save this measurement.</p>
+    {% endif %}
+    <form method="post">
+      {% csrf_token %}
+      {% include "accounts/_form_fields.html" %}
+      <button type="submit">Save measurement and follow-up</button>
+    </form>
+    <p class="form-links"><a href="{% url 'patients:new_measurement' patient.id %}">Enter the measurement again</a></p>
+  </section>
+{% endblock %}

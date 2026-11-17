@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Patients | Baton{% endblock %}
+{% block content %}
+  <section class="page" aria-labelledby="page-title">
+    <div class="page-heading">
+      <div>
+        <p class="eyebrow">Patient monitoring</p>
+        <h1 id="page-title">Patients</h1>
+      </div>
+      <a class="button" href="{% url 'patients:register' %}">Register or add patient</a>
+    </div>
+
+    <form class="search-form" method="get" role="search">
+      <label for="patient-search">Search by name or phone number</label>
+      <div class="inline-form">
+        <input id="patient-search" name="q" value="{{ query }}" type="search" autocomplete="off">
+        <button type="submit">Search</button>
+      </div>
+    </form>
+
+    {% if patients %}
+      <ul class="record-list">
+        {% for patient in patients %}
+          <li>
+            <div>
+              <a class="record-title" href="{% url 'patients:detail' patient.id %}">{{ patient.first_name }} {{ patient.last_name }}</a>
+              <span>{{ patient.local_phone }}</span>
+              {% with active=patient.active_followups.0 %}
+                {% if active %}
+                  <span>Next follow-up: {{ active.scheduled_date|date:"j M Y" }}</span>
+                  {% if active.attention_required %}<strong class="status status-attention">Vendor attention required</strong>{% endif %}
+                {% endif %}
+              {% endwith %}
+            </div>
+            <a href="{% url 'patients:detail' patient.id %}">Open record</a>
+          </li>
+        {% endfor %}
+      </ul>
+      {% include "patients/_pagination.html" with page_obj=patients %}
+    {% elif query %}
+      <div class="empty-state">
+        <h2>No matching patients</h2>
+        <p>Try another name or phone number, or register a patient.</p>
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <h2>No patients yet</h2>
+        <p>Register a new patient or add an existing Baton patient to your list.</p>
+      </div>
+    {% endif %}
+  </section>
+{% endblock %}

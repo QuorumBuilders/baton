@@ -1,10 +1,43 @@
 {% extends "base.html" %}
 {% block title %}Your business | Baton{% endblock %}
 {% block content %}
-  <section class="account-page" aria-labelledby="page-title">
+  <section class="page" aria-labelledby="page-title">
     <p class="eyebrow">Vendor account</p>
     <h1 id="page-title">{{ user.business_name }}</h1>
-    <p>You&rsquo;re logged in. Your vendor account is active.</p>
-    <p>Your dashboard is taking shape. More functionality will follow in a future phase.</p>
+    <p class="lead">Monitor associated patients and coordinate their next BP follow-up.</p>
+    <p><a class="button" href="{% url 'patients:list' %}">Open patient list</a></p>
+
+    <div class="summary-grid dashboard-grid">
+      <section class="summary-card" aria-labelledby="notifications-heading">
+        <h2 id="notifications-heading">Overdue manual follow-ups</h2>
+        {% if notifications %}
+          <ul class="record-list compact">
+            {% for notification in notifications %}
+              <li>
+                <div>
+                  <strong>Manual follow-up overdue</strong>
+                  <span>{{ notification.patient.first_name }} {{ notification.patient.last_name }} &middot; due {{ notification.followup.scheduled_date|date:"j M Y" }}</span>
+                </div>
+                <a href="{% url 'patients:detail' notification.patient.id %}">Open</a>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p>No overdue manual follow-up notifications.</p>
+        {% endif %}
+      </section>
+      <section class="summary-card" aria-labelledby="attention-heading">
+        <h2 id="attention-heading">Requires vendor attention</h2>
+        {% if attention_patients %}
+          <ul class="record-list compact">
+            {% for patient in attention_patients %}
+              <li><a href="{% url 'patients:detail' patient.id %}">{{ patient.first_name }} {{ patient.last_name }}</a></li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p>No patients are currently flagged after the final overdue reminder.</p>
+        {% endif %}
+      </section>
+    </div>
   </section>
 {% endblock %}

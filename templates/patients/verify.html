@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Verify patient phone | Baton{% endblock %}
+{% block content %}
+  <section class="account-page" aria-labelledby="page-title">
+    <p class="eyebrow">Patient registration</p>
+    <h1 id="page-title">Verify the phone number</h1>
+    <p>Enter the six-digit code sent to the patient. Codes expire and are never displayed by Baton.</p>
+    <form method="post">
+      {% csrf_token %}
+      {% include "accounts/_form_fields.html" %}
+      <button type="submit">Verify phone</button>
+    </form>
+    <form class="form-links" method="post" action="{% url 'patients:resend' %}">
+      {% csrf_token %}
+      <button class="secondary" type="submit">Send a new code</button>
+    </form>
+  </section>
+{% endblock %}

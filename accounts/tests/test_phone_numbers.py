@@ -1,7 +1,7 @@
 from django.core.exceptions import ValidationError
 from django.test import SimpleTestCase
 
-from accounts.phone_numbers import normalize_phone_number
+from accounts.phone_numbers import local_phone_number, normalize_mobile_number, normalize_phone_number
 
 
 class PhoneNumberTests(SimpleTestCase):
@@ -27,3 +27,9 @@ class PhoneNumberTests(SimpleTestCase):
             with self.subTest(value=value):
                 with self.assertRaises(ValidationError):
                     normalize_phone_number(value)
+
+    def test_mobile_only_normalization_and_local_display(self):
+        self.assertEqual(normalize_mobile_number("08050675448"), "+2348050675448")
+        self.assertEqual(local_phone_number("+2348050675448"), "08050675448")
+        with self.assertRaises(ValidationError):
+            normalize_mobile_number("02012345678")

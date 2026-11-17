@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Follow-up history | Baton{% endblock %}
+{% block content %}
+  <section class="page" aria-labelledby="page-title">
+    <p class="eyebrow"><a href="{% url 'patients:detail' patient.id %}">{{ patient.first_name }} {{ patient.last_name }}</a></p>
+    <h1 id="page-title">Follow-up history</h1>
+    {% if followups %}
+      <ol class="timeline">
+        {% for followup in followups %}
+          <li>
+            <h2>{{ followup.scheduled_date|date:"j M Y" }} &middot; {{ followup.get_status_display }}</h2>
+            <dl class="details-list">
+              <div><dt>Type</dt><dd>{{ followup.get_followup_type_display }}</dd></div>
+              <div><dt>Scheduled by</dt><dd>{{ followup.scheduled_by.business_name }}</dd></div>
+              {% if followup.scheduling_rule %}<div><dt>Rule/version</dt><dd>{{ followup.scheduling_rule.name }} / {{ followup.scheduling_rule.version }}</dd></div>{% endif %}
+              <div><dt>Created</dt><dd>{{ followup.created_at|date:"j M Y, H:i" }}</dd></div>
+              {% if followup.actual_fulfilment_at %}<div><dt>Actually fulfilled</dt><dd>{{ followup.actual_fulfilment_at|date:"j M Y, H:i" }}</dd></div>{% endif %}
+              {% if followup.fulfilled_by_measurement %}<div><dt>Fulfilled by</dt><dd>{{ followup.fulfilled_by_measurement.recording_vendor.business_name }} recording {{ followup.fulfilled_by_measurement.systolic }}/{{ followup.fulfilled_by_measurement.diastolic }} mmHg</dd></div>{% endif %}
+            </dl>
+            {% if followup.schedule_changes.all %}
+              <h3>Schedule changes</h3>
+              <ul>
+                {% for change in followup.schedule_changes.all %}
+                  <li>{{ change.previous_scheduled_date|date:"j M Y" }} to {{ change.scheduled_date|date:"j M Y" }}, recorded by {{ change.changed_by.business_name }}</li>
+                {% endfor %}
+              </ul>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ol>
+      {% include "patients/_pagination.html" with page_obj=followups %}
+    {% else %}
+      <p>No follow-up history yet.</p>
+    {% endif %}
+  </section>
+{% endblock %}
