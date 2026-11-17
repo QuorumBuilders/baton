@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}{{ patient.first_name }} {{ patient.last_name }} | Baton{% endblock %}
+{% block content %}
+  <article class="page" aria-labelledby="page-title">
+    <p class="eyebrow"><a href="{% url 'patients:list' %}">Patients</a> / Patient record</p>
+    <div class="page-heading">
+      <div>
+        <h1 id="page-title">{{ patient.first_name }} {{ patient.last_name }}</h1>
+        <p>{{ patient.local_phone }} &middot; Born {{ patient.date_of_birth|date:"j M Y" }}</p>
+      </div>
+      <a class="button" href="{% url 'patients:new_measurement' patient.id %}">Record BP measurement</a>
+    </div>
+
+    <section class="summary-grid" aria-label="Patient details">
+      <div class="summary-card">
+        <h2>Patient information</h2>
+        <dl class="details-list">
+          <div><dt>Patient ID</dt><dd>{{ patient.id }}</dd></div>
+          <div><dt>Sex</dt><dd>{{ patient.sex|default:"Not recorded" }}</dd></div>
+          <div><dt>Preferred language</dt><dd>{{ patient.preferred_language }}</dd></div>
+          <div><dt>Alternative contact</dt><dd>{{ patient.local_alternative_phone|default:"Not recorded" }}</dd></div>
+          <div><dt>SMS consent</dt><dd>{{ patient.sms_consent|yesno:"Yes,No" }}</dd></div>
+          <div><dt>Voice consent</dt><dd>{{ patient.voice_consent|yesno:"Yes,No" }}</dd></div>
+        </dl>
+      </div>
+      <div class="summary-card">
+        <h2>Active follow-up</h2>
+        {% if active_followup %}
+          <p class="metric">{{ active_followup.scheduled_date|date:"j M Y" }}</p>
+          <p>{{ active_followup.get_followup_type_display }} follow-up, scheduled by {{ active_followup.scheduled_by.business_name }}.</p>
+          {% if active_followup.scheduled_date < today %}<p class="status status-overdue">Overdue</p>{% endif %}
+          {% if active_followup.attention_required %}<p class="status status-attention">Vendor attention required after final overdue reminder</p>{% endif %}
+          <p><a href="{% url 'patients:reschedule_followup' patient.id %}">Change follow-up date</a></p>
+        {% else %}
+          <p>No active follow-up. Saving the next BP measurement will create one.</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="content-section" aria-labelledby="measurements-heading">
+      <div class="section-heading">
+        <h2 id="measurements-heading">Blood pressure history</h2>
+        {% if latest %}<p>Latest: <strong>{{ latest.systolic }}/{{ latest.diastolic }} mmHg</strong> on {{ latest.measured_at|date:"j M Y, H:i" }}</p>{% endif %}
+      </div>
+      {% if measurements %}
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th scope="col">Date and time</th><th scope="col">BP</th><th scope="col">Pulse</th><th scope="col">Recorded by</th></tr></thead>
+            <tbody>
+              {% for measurement in measurements %}
+                <tr>
+                  <td>{{ measurement.measured_at|date:"j M Y, H:i" }}</td>
+                  <td>{{ measurement.systolic }}/{{ measurement.diastolic }} mmHg</td>
+                  <td>{{ measurement.pulse|default:"—" }}</td>
+                  <td>{{ measurement.recording_vendor.business_name }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% include "patients/_pagination.html" with page_obj=measurements %}
+      {% else %}
+        <p>No BP measurements have been recorded.</p>
+      {% endif %}
+    </section>
+
+    <section class="content-section" aria-labelledby="followups-heading">
+      <div class="section-heading">
+        <h2 id="followups-heading">Follow-up history</h2>
+        <a href="{% url 'patients:followup_history' patient.id %}">View all</a>
+      </div>
+      {% if followups %}
+        <ul class="record-list compact">
+          {% for followup in followups %}
+            <li>
+              <div>
+                <strong>{{ followup.scheduled_date|date:"j M Y" }}</strong>
+                <span>{{ followup.get_followup_type_display }} &middot; {{ followup.get_status_display }}</span>
+                {% if followup.actual_fulfilment_at %}<span>Fulfilled {{ followup.actual_fulfilment_at|date:"j M Y, H:i" }}</span>{% endif %}
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p>No follow-up history yet.</p>
+      {% endif %}
+    </section>
+  </article>
+{% endblock %}

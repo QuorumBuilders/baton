@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}New BP measurement | Baton{% endblock %}
+{% block content %}
+  <section class="page narrow" aria-labelledby="page-title">
+    <p class="eyebrow"><a href="{% url 'patients:detail' patient.id %}">{{ patient.first_name }} {{ patient.last_name }}</a></p>
+    <h1 id="page-title">Record BP measurement</h1>
+    <p>Enter the final reading selected by the vendor. Baton records the values without diagnosis or clinical interpretation.</p>
+    <form method="post">
+      {% csrf_token %}
+      {% include "accounts/_form_fields.html" %}
+      <button type="submit">Review measurement</button>
+    </form>
+    {% if recent %}
+      <section class="content-section" aria-labelledby="recent-heading">
+        <h2 id="recent-heading">Recent measurements</h2>
+        <ul class="record-list compact">
+          {% for measurement in recent %}
+            <li><div><strong>{{ measurement.systolic }}/{{ measurement.diastolic }} mmHg</strong><span>{{ measurement.measured_at|date:"j M Y, H:i" }} &middot; {{ measurement.recording_vendor.business_name }}</span></div></li>
+          {% endfor %}
+        </ul>
+      </section>
+    {% endif %}
+  </section>
+{% endblock %}

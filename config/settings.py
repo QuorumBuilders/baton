@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "core.apps.CoreConfig",
     "accounts.apps.AccountsConfig",
+    "patients.apps.PatientsConfig",
 ]
 
 AUTH_USER_MODEL = "accounts.User"
@@ -103,6 +104,9 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": BASE_DIR / "db.sqlite3",
+        # SQLite has no row locks. Acquire the writer lock before transaction reads
+        # so concurrent confirmations serialize rather than upgrade read locks.
+        "OPTIONS": {"transaction_mode": "IMMEDIATE", "timeout": 20},
     }
 }
 

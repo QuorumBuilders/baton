@@ -39,3 +39,19 @@ def normalize_phone_number(value):
     if not re.fullmatch(r"\+234[1-9][0-9]{9}", canonical):
         raise ValidationError(message, code="invalid_phone_number")
     return canonical
+
+
+def normalize_mobile_number(value):
+    canonical = normalize_phone_number(value)
+    number = phonenumbers.parse(canonical, "NG")
+    if phonenumbers.number_type(number) not in {
+        phonenumbers.PhoneNumberType.MOBILE,
+        phonenumbers.PhoneNumberType.FIXED_LINE_OR_MOBILE,
+    }:
+        raise ValidationError("Enter a valid Nigerian mobile number, such as 08050675448.")
+    return canonical
+
+
+def local_phone_number(value):
+    """Display canonical Nigerian numbers without changing stored identities."""
+    return "0" + value[4:] if value and value.startswith("+234") else value or ""

@@ -8,25 +8,30 @@ from django.contrib.auth.forms import (
 from django.core.exceptions import ValidationError
 
 from .models import User
-from .phone_numbers import normalize_phone_number
+from .phone_numbers import local_phone_number, normalize_mobile_number, normalize_phone_number
 from .validators import validate_vendor_credential
 
 
 class PhoneNumberField(forms.CharField):
-    def __init__(self, **kwargs):
+    def __init__(self, mobile_only=False, **kwargs):
+        self.mobile_only = mobile_only
         kwargs.setdefault("max_length", 64)
         kwargs.setdefault("label", "Phone number")
-        kwargs.setdefault("help_text", "Use a Nigerian number, such as 08012345678 or +2348012345678.")
+        kwargs.setdefault("help_text", "Use a Nigerian number, such as 08050675448. International +234 format is also accepted.")
         kwargs.setdefault("widget", forms.TextInput(attrs={"type": "tel", "autocomplete": "tel"}))
         super().__init__(**kwargs)
 
     def clean(self, value):
         value = super().clean(value)
-        return normalize_phone_number(value) if value else None
+        normalizer = normalize_mobile_number if self.mobile_only else normalize_phone_number
+        return normalizer(value) if value else None
+
+    def prepare_value(self, value):
+        return local_phone_number(value)
 
 
 class VendorRegistrationForm(forms.Form):
-    phone_number = PhoneNumberField()
+    phone_number = PhoneNumberField(mobile_only=True)
     business_name = forms.CharField(
         label="Pharmacy or chemist name",
         max_length=255,

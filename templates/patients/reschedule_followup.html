@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Change follow-up date | Baton{% endblock %}
+{% block content %}
+  <section class="account-page" aria-labelledby="page-title">
+    <p class="eyebrow"><a href="{% url 'patients:detail' patient.id %}">{{ patient.first_name }} {{ patient.last_name }}</a></p>
+    <h1 id="page-title">Change follow-up date</h1>
+    <p>The current date is <strong>{{ followup.scheduled_date|date:"j M Y" }}</strong>. Changing it creates a manual schedule revision, records the change, and recalculates outstanding reminders.</p>
+    <form method="post">
+      {% csrf_token %}
+      {% include "accounts/_form_fields.html" %}
+      <button type="submit">Update follow-up date</button>
+    </form>
+  </section>
+{% endblock %}

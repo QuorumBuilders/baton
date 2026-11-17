@@ -6,8 +6,10 @@ from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView
 from django.core.exceptions import ImproperlyConfigured, PermissionDenied, ValidationError
+from django.db.models import F
 from django.shortcuts import redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.views.decorators.debug import sensitive_post_parameters
 from django.views.decorators.http import require_http_methods, require_POST
@@ -24,6 +26,7 @@ from .services import (
     issue_otp,
     verify_otp,
 )
+from patients.models import FollowUp
 
 REGISTRATION_SESSION_KEY = "vendor_registration"
 REGISTRATION_MESSAGE = "If this number can be registered, a verification code has been sent."
@@ -173,4 +176,20 @@ def vendor_dashboard(request):
         or request.user.is_superuser
     ):
         raise PermissionDenied
-    return render(request, "accounts/dashboard.html")
+    notifications = request.user.patient_notifications.filter(
+        followup__status=FollowUp.Status.ACTIVE,
+        followup__scheduled_date__lt=timezone.localdate(),
+        schedule_revision=F("followup__schedule_revision"),
+    ).select_related("patient", "followup")[:10]
+    attention_patients = request.user.patients.filter(
+        followups__status=FollowUp.Status.ACTIVE,
+        followups__attention_required=True,
+    ).distinct()[:10]
+    return render(
+        request,
+        "accounts/dashboard.html",
+        {
+            "notifications": notifications,
+            "attention_patients": attention_patients,
+        },
+    )
