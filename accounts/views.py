@@ -29,7 +29,7 @@ from .services import (
 from patients.models import FollowUp
 
 REGISTRATION_SESSION_KEY = "vendor_registration"
-REGISTRATION_MESSAGE = "If this number can be registered, a verification code has been sent."
+REGISTRATION_MESSAGE = "If this number can be registered, a verification code has been requested."
 
 
 def account_home(user):

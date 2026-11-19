@@ -10,6 +10,10 @@ class PatientLookupForm(forms.Form):
 
 
 class PatientRegistrationForm(forms.Form):
+    processing_agreed = forms.BooleanField(
+        label="I confirm that the patient agrees to Baton collecting and using their details and health records for record-keeping and follow-up coordination, with access by my vendor account.",
+        help_text="Explain the patient privacy notice before collecting details. They can withdraw agreement through an associated vendor or the project contact. If they decline, do not submit a record. This is separate from SMS and voice choices.",
+    )
     first_name = forms.CharField(max_length=150, widget=forms.TextInput(attrs={"autocomplete": "given-name"}))
     last_name = forms.CharField(max_length=150, widget=forms.TextInput(attrs={"autocomplete": "family-name"}))
     date_of_birth = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
@@ -22,11 +26,13 @@ class PatientRegistrationForm(forms.Form):
         label="Has the patient explicitly agreed to SMS communications?",
         choices=[("yes", "Yes"), ("no", "No")], coerce=lambda value: value == "yes",
         widget=forms.RadioSelect,
+        help_text="Optional routine text communications; no routine SMS reminder workflow currently runs. OTP verification is separate. The patient can withdraw through an associated vendor or the project contact.",
     )
     voice_consent = forms.TypedChoiceField(
         label="Has the patient explicitly agreed to voice call reminders?",
         choices=[("yes", "Yes"), ("no", "No")], coerce=lambda value: value == "yes",
         widget=forms.RadioSelect,
+        help_text="Optional visit, overdue, medication and general-health reminders. Calls are currently simulated. The patient can withdraw through an associated vendor or the project contact.",
     )
     alternative_contact_number = PhoneNumberField(mobile_only=True, required=False, label="Alternative contact number (optional)")
 
@@ -44,6 +50,17 @@ class AssociationConfirmationForm(forms.Form):
     patient_agreed = forms.BooleanField(
         label="I confirm that the patient has agreed to be added to my patient list and to share their relevant health history with me."
     )
+
+
+class CommunicationWithdrawalForm(forms.Form):
+    withdraw_sms = forms.BooleanField(required=False, label="The patient asks to stop routine SMS communications")
+    withdraw_voice = forms.BooleanField(required=False, label="The patient asks to stop voice call reminders")
+
+    def clean(self):
+        data = super().clean()
+        if not data.get("withdraw_sms") and not data.get("withdraw_voice"):
+            raise forms.ValidationError("Select at least one channel the patient wants to stop.")
+        return data
 
 
 class MeasurementForm(forms.Form):

@@ -6,6 +6,8 @@
     <h1 id="page-title">Add this patient?</h1>
     <p>A patient record already exists for <strong>{{ phone }}</strong>. Another verification code is not required.</p>
     <p>Confirm the patient&rsquo;s agreement before their relevant Baton history is shared with your vendor account.</p>
+    <p>Show or explain the <a href="{% url 'core:patient_privacy' %}">Patient Privacy and Data-Sharing Notice</a> before asking. Adding your account allows access to the patient&rsquo;s complete Baton BP and follow-up history. Original vendor attribution and measurement history remain recorded.</p>
+    <p>Adding a vendor does not change existing <a href="{% url 'core:communication_info' %}">SMS or voice choices</a>. A patient can decline sharing or ask questions through the <a href="{% url 'core:contact' %}">project contact</a>.</p>
     <form method="post">
       {% csrf_token %}
       {% include "accounts/_form_fields.html" %}

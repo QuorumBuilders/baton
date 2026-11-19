@@ -3,11 +3,23 @@ import uuid
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Q
 from django.utils import timezone
 
 from accounts.phone_numbers import local_phone_number, normalize_mobile_number
+
+
+class PatientQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        audited_fields = {
+            "sms_consent", "sms_consent_recorded_at", "voice_consent",
+            "voice_consent_recorded_at", "processing_agreed_at",
+            "processing_agreement_recorded_by", "processing_agreement_recorded_by_id",
+        }
+        if audited_fields.intersection(kwargs):
+            raise ValidationError("Save patient consent individually so its audit history is preserved.")
+        return super().update(**kwargs)
 
 
 class Patient(models.Model):
@@ -29,6 +41,11 @@ class Patient(models.Model):
     voice_consent = models.BooleanField(default=False)
     voice_consent_recorded_at = models.DateTimeField()
     alternative_contact_number = models.CharField(max_length=16, blank=True)
+    processing_agreed_at = models.DateTimeField(null=True, blank=True, editable=False)
+    processing_agreement_recorded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True,
+        editable=False, related_name="recorded_patient_processing_agreements",
+    )
     registered_at = models.DateTimeField(auto_now_add=True)
     vendors = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
@@ -36,10 +53,16 @@ class Patient(models.Model):
         through_fields=("patient", "vendor"),
         related_name="patients",
     )
+    objects = PatientQuerySet.as_manager()
 
     class Meta:
         ordering = ["last_name", "first_name", "id"]
         constraints = [
+            models.CheckConstraint(
+                condition=Q(processing_agreed_at__isnull=True, processing_agreement_recorded_by__isnull=True)
+                | Q(processing_agreed_at__isnull=False, processing_agreement_recorded_by__isnull=False),
+                name="patient_processing_agreement_audited",
+            ),
             models.CheckConstraint(condition=Q(phone_number__regex=r"^\+234[1-9][0-9]{9}$"), name="patient_phone_canonical"),
             models.CheckConstraint(condition=Q(alternative_contact_number="") | Q(alternative_contact_number__regex=r"^\+234[1-9][0-9]{9}$"), name="patient_alt_phone_canonical"),
             models.CheckConstraint(condition=~Q(first_name__regex=r"^\s*$") & ~Q(last_name__regex=r"^\s*$") & ~Q(preferred_language__regex=r"^\s*$"), name="patient_required_text"),
@@ -70,21 +93,94 @@ class Patient(models.Model):
             raise ValidationError({"date_of_birth": "Date of birth cannot be in the future."})
 
     def save(self, *args, **kwargs):
-        now = timezone.now()
-        if self._state.adding:
-            self.sms_consent_recorded_at = self.sms_consent_recorded_at or now
-            self.voice_consent_recorded_at = self.voice_consent_recorded_at or now
-        else:
-            previous = type(self).objects.get(pk=self.pk)
-            if previous.sms_consent != self.sms_consent:
-                self.sms_consent_recorded_at = now
-            if previous.voice_consent != self.voice_consent:
-                self.voice_consent_recorded_at = now
-        self.full_clean()
-        return super().save(*args, **kwargs)
+        # Keep current choices for delivery checks and append their history in
+        # the same transaction. Partial saves must also persist new timestamps.
+        if kwargs.get("update_fields") is not None:
+            kwargs["update_fields"] = set(kwargs["update_fields"])
+            if not kwargs["update_fields"]:
+                return
+        with transaction.atomic():
+            now = timezone.now()
+            adding = self._state.adding
+            previous = None if adding else type(self).objects.select_for_update().get(pk=self.pk)
+            update_fields = kwargs.get("update_fields")
+            changed = []
+            for channel in ("sms", "voice"):
+                field = f"{channel}_consent"
+                timestamp = f"{field}_recorded_at"
+                if adding:
+                    setattr(self, timestamp, getattr(self, timestamp) or now)
+                    changed.append(channel)
+                elif update_fields is None or field in update_fields:
+                    if getattr(previous, field) != getattr(self, field):
+                        setattr(self, timestamp, now)
+                        changed.append(channel)
+                        if update_fields is not None:
+                            kwargs["update_fields"] = set(kwargs["update_fields"]) | {timestamp}
+                    else:
+                        setattr(self, timestamp, getattr(previous, timestamp))
+                else:
+                    # Unsaved choices must not produce audit events.
+                    setattr(self, field, getattr(previous, field))
+                    setattr(self, timestamp, getattr(previous, timestamp))
+            if previous:
+                for field in ("processing_agreed_at", "processing_agreement_recorded_by_id"):
+                    if getattr(self, field) != getattr(previous, field):
+                        raise ValidationError("The original processing agreement cannot be overwritten.")
+            self.full_clean()
+            result = super().save(*args, **kwargs)
+            for channel in changed:
+                CommunicationConsentRecord.objects.create(
+                    patient=self, channel=channel, agreed=getattr(self, f"{channel}_consent"),
+                    recorded_at=getattr(self, f"{channel}_consent_recorded_at"),
+                    recorded_by=getattr(self, "_consent_recorded_by", None),
+                    source=getattr(self, "_consent_source", "recorded"),
+                )
+            return result
 
     def __str__(self):
         return f"{self.first_name} {self.last_name}"
+
+
+class ConsentHistoryQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        raise ValidationError("Consent history cannot be overwritten.")
+
+    def delete(self):
+        raise ValidationError("Consent history cannot be deleted through the application.")
+
+
+class CommunicationConsentRecord(models.Model):
+    class Channel(models.TextChoices):
+        SMS = "sms", "SMS"
+        VOICE = "voice", "Voice call"
+
+    class Source(models.TextChoices):
+        REGISTRATION = "registration", "Patient registration"
+        VENDOR = "vendor", "Patient request recorded by vendor"
+        ADMIN = "admin", "Administrator"
+        LEGACY = "legacy", "Legacy choice snapshot (earlier history unavailable)"
+        RECORDED = "recorded", "Application record"
+
+    patient = models.ForeignKey(Patient, on_delete=models.PROTECT, related_name="communication_consent_history")
+    channel = models.CharField(max_length=5, choices=Channel.choices)
+    agreed = models.BooleanField()
+    recorded_at = models.DateTimeField(default=timezone.now)
+    recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="recorded_communication_consents")
+    source = models.CharField(max_length=12, choices=Source.choices, default=Source.RECORDED)
+    objects = ConsentHistoryQuerySet.as_manager()
+
+    class Meta:
+        ordering = ["recorded_at", "id"]
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValidationError("Consent history cannot be overwritten.")
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Consent history cannot be deleted through the application.")
 
 
 class VendorPatient(models.Model):
@@ -105,6 +201,15 @@ class VendorPatient(models.Model):
             raise ValidationError({"vendor": "Select a vendor account."})
         if self.confirmation_recorded_by_id and self.confirmation_recorded_by_id != self.vendor_id:
             raise ValidationError({"confirmation_recorded_by": "The new vendor must record the confirmation."})
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            previous = type(self).objects.get(pk=self.pk)
+            fields = ("patient_id", "vendor_id", "sharing_confirmed_at", "confirmation_recorded_by_id")
+            if any(getattr(self, field) != getattr(previous, field) for field in fields):
+                raise ValidationError("The original vendor association and sharing confirmation cannot be overwritten.")
+        self.full_clean()
+        return super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.patient} — {self.vendor}"

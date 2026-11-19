@@ -78,6 +78,12 @@ VOICE_DELIVERY_BACKEND = os.environ.get(
     "VOICE_DELIVERY_BACKEND",
     "communications.adapters.MockVoiceAdapter" if DEBUG else "",
 )
+# Contact and location supplied by the project operator. Do not infer a legal
+# entity or street address from the product name or the contact email.
+BATON_OPERATOR_NAME = os.environ.get("BATON_OPERATOR_NAME", "").strip()
+BATON_OPERATOR_LOCATION = os.environ.get("BATON_OPERATOR_LOCATION", "Akure, Ondo, Nigeria").strip()
+BATON_OPERATOR_ADDRESS = os.environ.get("BATON_OPERATOR_ADDRESS", "").strip()
+BATON_CONTACT_EMAIL = os.environ.get("BATON_CONTACT_EMAIL", "teamtensorcs@gmail.com").strip()
 # Kept as a compatibility alias for existing local configuration and tests.
 OTP_DELIVERY_BACKEND = os.environ.get("OTP_DELIVERY_BACKEND", SMS_DELIVERY_BACKEND)
 

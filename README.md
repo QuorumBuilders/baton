@@ -7,6 +7,9 @@ history, centralized follow-up coordination and simulated communication delivery
 The frontend uses Django Templates, HTML and CSS; all core workflows work without
 JavaScript. **The prototype does not send real SMS messages or place real voice
 calls.** No external provider credentials are required for local development.
+Baton also provides public privacy, legal and patient notices, vendor-recorded
+patient processing agreements and a protected communication withdrawal screen.
+These establish a prototype foundation, not a claim of full NDPA compliance.
 
 ## Prerequisites
 
@@ -61,6 +64,10 @@ Keep `.env` private. It and the local SQLite database are ignored by Git.
 | `DJANGO_ALLOWED_HOSTS` | Comma-separated hostnames, without schemes or ports | Empty list |
 | `SMS_DELIVERY_BACKEND` | Dotted Python class implementing the SMS adapter | Console adapter when debug is enabled; otherwise empty |
 | `VOICE_DELIVERY_BACKEND` | Dotted Python class implementing the voice adapter | Mock adapter when debug is enabled; otherwise empty |
+| `BATON_OPERATOR_NAME` | Verified operator legal or operating name | Empty; clearly marked placeholder |
+| `BATON_OPERATOR_LOCATION` | Verified general operator location | `Akure, Ondo, Nigeria`, supplied by the project operator |
+| `BATON_OPERATOR_ADDRESS` | Verified full physical address | Empty; clearly marked placeholder |
+| `BATON_CONTACT_EMAIL` | Privacy and account support contact | `teamtensorcs@gmail.com`, supplied by the project operator |
 
 The example enables local debugging and allows `localhost`, `127.0.0.1` and
 `[::1]`. `DJANGO_DEBUG` accepts true/false, 1/0, yes/no or on/off, regardless of
@@ -243,6 +250,13 @@ Each patient has one global UUID-based record, matched by their normalized mobil
 number. A record includes the required name, date of birth and preferred language,
 optional sex and alternative contact number, and explicit SMS and voice consent
 with audit timestamps. Patients do not receive application accounts.
+Before phone lookup, the registration screen directs the vendor to show or explain
+the public patient notice and obtain the patient's agreement to proceed. New health
+record registration requires one affirmative, unselected processing-agreement
+confirmation, recorded with the vendor and timestamp; displaying a notice or
+verifying an OTP is not agreement. SMS and voice remain separate explicit yes/no
+choices, with neither selected by default; answering no to either or both permits
+registration. Additional vendor sharing retains its existing separate confirmation.
 New registrations select English or Nigerian Pidgin for voice reminders.
 Historical language values are preserved; supported English/Pidgin aliases are
 recognized, while an unsupported language produces an inspectable failed attempt
@@ -281,7 +295,7 @@ Unrelated vendors receive no patient record through direct URL access.
 A BP measurement stores systolic and diastolic pressure, optional pulse, the
 recording vendor and an automatic timestamp. The vendor reviews the entered values
 and sees an explicit immutability warning before saving. Saved measurements have no
-ordinary edit or delete operation and remain part of the permanent patient history.
+ordinary edit or delete operation and remain part of the historical patient record.
 
 Saving a measurement fulfils the patient's previous active follow-up, even when a
 different associated vendor records it or the scheduled date has not arrived. Baton
@@ -417,10 +431,71 @@ it could report confirmed delivery; this prototype has no such integration.
 
 ## Administration
 
-Django admin provides patient and vendor-association management, read-only BP and
+Django admin provides patient demographic and communication-choice changes,
+read-only vendor-association/consent history, read-only BP and
 follow-up history, versioned follow-up rule configuration, schedule-change history,
 reminder schedules, communication attempts and vendor notifications. Vendor accounts never receive staff
 privileges through these workflows.
+
+New patients and vendor associations must be created through the vendor registration
+and association flows so phone verification and patient agreement cannot be bypassed
+by admin forms. Original association confirmation and processing-agreement fields
+cannot be overwritten by normal model saves. Patient admin communication changes
+append audit events identifying the administrator; audit history cannot be edited
+or deleted through ordinary application operations.
+
+## Privacy, policies and consent
+
+All eight notices use Django templates and the shared footer, and are public:
+
+| Page | Route |
+| --- | --- |
+| Privacy Policy | `/policies/privacy/` |
+| Terms of Use | `/policies/terms/` |
+| Patient Privacy and Data-Sharing Notice | `/policies/patient-privacy/` |
+| Communication Consent Information | `/policies/communications/` |
+| Cookie Policy | `/policies/cookies/` |
+| Data Retention and Deletion | `/policies/retention/` |
+| Medical Disclaimer | `/policies/medical-disclaimer/` |
+| Contact and Privacy Complaints | `/policies/contact/` |
+
+Policy links also appear before vendor/patient collection, existing-patient
+association, OTP verification and communication withdrawal. No mandatory notice
+acknowledgement or optional-cookie banner is added. The current cookies are Django's
+`sessionid`, `csrftoken` and temporary `messages` cookie from fallback message storage.
+No analytics, advertising or tracking cookies are implemented.
+
+An associated vendor can open **Withdraw communication consent** on the patient
+record (`/patients/<patient-id>/communication-consent/`) and record the patient's
+request to stop SMS, voice or both. It requires vendor authorization, current
+association and a CSRF-protected POST. The unselected controls cannot grant consent.
+Each changed channel appends a `CommunicationConsentRecord` with its value, time,
+recording actor and source. Current booleans and timestamps support delivery checks;
+earlier timestamps remain in the history. Repeating a withdrawal does not rewrite
+or duplicate an unchanged choice. Partial saves also persist change timestamps;
+bulk updates of audited patient fields are rejected. No historical reminders replay.
+
+Migration `patients.0005_privacy_consent_history` preserves existing communication
+choices and their timestamps as **legacy snapshots** with no invented recording
+actor. Earlier overwritten choices cannot be reconstructed. Existing patients'
+processing-agreement fields remain unknown, not retroactively populated. Normal
+creation and admin changes append audit entries atomically. Migrate an existing
+checkout with `uv run python manage.py migrate`; no database reset is needed.
+
+Withdrawal prevents future non-OTP SMS or voice adapter invocations through the
+selected channel after it is recorded. It cannot recall an invocation already made.
+The other channel, patient access, measurements and follow-up scheduling remain
+intact. OTP verification stays transactional and separate. Routine reminders still
+use voice only and the mock adapters still deliver nothing to a phone.
+
+The operator supplied `teamtensorcs@gmail.com` and `Akure, Ondo, Nigeria`. The
+operator's legal/operating name and full physical address remain marked placeholders.
+Production hosting/location, processors/transfers, retention periods, backups and
+request handling have not been verified. The prototype has no self-service rights
+portal, automated patient deletion, historical correction or processing/sharing
+restriction workflow. A human contact path does not establish a completed operational
+process. See [production privacy review](docs/privacy-production-review.md) for the
+legal references and outstanding work, including DPIA and NDPC registration review.
 
 ## Database transition from Phase 1
 

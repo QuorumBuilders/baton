@@ -1,0 +1,17 @@
+{% extends "core/policies/base.html" %}
+{% block title %}Contact and Privacy Complaints | Baton{% endblock %}
+{% block policy_title %}Contact and Privacy Complaints{% endblock %}
+{% block policy_content %}
+  <p>Patients and vendors can contact the project about privacy questions, access or copy requests, correction, restriction or deletion, consent withdrawal, complaints and account-related issues.</p>
+  {% include "core/policies/_operator.html" %}
+  <p class="helptext">The supplied location is a general location, not a verified street or postal address. The legal or operating name and full address remain to be verified.</p>
+  <h2>Making a request</h2>
+  <p>In an initial enquiry, say whether you are a patient or vendor, the type of help you need and a safe way to reply. Do not send health records, identity documents, passwords, PINs or OTPs in an initial email. The contact mailbox uses an external email service; a secure procedure for any necessary sensitive exchange must be arranged.</p>
+  <p>Before access, correction or another sensitive action, the operator or authorized vendor must check identity and authority proportionately. An associated vendor can help a patient make a request; patients do not need a Baton account. This page supplies contact information, not an automatic request-processing portal. Response procedures and responsibilities need operational verification before production; no unverified service deadline is promised here.</p>
+  <h2>Stopping routine communications</h2>
+  <p>For immediate recording of SMS or voice withdrawal, ask an associated vendor to use <strong>Withdraw communication consent</strong> on your patient record. SMS, voice or both can be selected independently. Once recorded, future routine invocations through those channels are blocked, while patient history remains accessible. Email requests need human handling and are not automatic opt-outs.</p>
+  <p>For withdrawal of health-record processing agreement or vendor sharing, explain that separate request to the contact or an associated vendor so it can be assessed and any necessary access restriction arranged. See <a href="{% url 'core:communication_info' %}">Communication Consent Information</a> and <a href="{% url 'core:retention' %}">Data Retention and Deletion</a>.</p>
+  <h2>Privacy complaints</h2>
+  <p>You can raise concerns about improper sharing, access, security, inaccurate records or how a privacy request was handled. You also have the right to complain directly to the <a href="https://ndpc.gov.ng/contact/">Nigeria Data Protection Commission (NDPC)</a> using its official contact information and complaint guidance. Contacting Baton first is not required, and using Baton does not waive statutory rights or legal remedies.</p>
+  <p>For clinical or urgent medical concerns, seek appropriate professional care. This support contact and Baton are not emergency services.</p>
+{% endblock %}

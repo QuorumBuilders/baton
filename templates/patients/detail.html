@@ -22,6 +22,8 @@
           <div><dt>SMS consent</dt><dd>{{ patient.sms_consent|yesno:"Yes,No" }}</dd></div>
           <div><dt>Voice consent</dt><dd>{{ patient.voice_consent|yesno:"Yes,No" }}</dd></div>
         </dl>
+        <p class="form-links"><a href="{% url 'patients:communication_consent' patient.id %}">Withdraw communication consent</a></p>
+        <p><a href="{% url 'core:patient_privacy' %}">Patient privacy notice</a> &middot; <a href="{% url 'core:communication_info' %}">Communication consent information</a></p>
       </div>
       <div class="summary-card">
         <h2>Active follow-up</h2>

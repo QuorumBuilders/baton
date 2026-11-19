@@ -1,0 +1,24 @@
+{% extends "core/policies/base.html" %}
+{% block title %}Patient Privacy and Data-Sharing Notice | Baton{% endblock %}
+{% block policy_title %}Patient Privacy and Data-Sharing Notice{% endblock %}
+{% block policy_content %}
+  <p>Your pharmacy or chemist can use Baton to keep your blood pressure records and arrange your next follow-up. You do not need a Baton application account, password or app. You can read this notice yourself or ask the vendor to explain it before you give your details.</p>
+  <h2>What the vendor will ask for</h2>
+  <p>The vendor enters your name, mobile number, date of birth and preferred language. Sex and an alternative contact number are optional. Baton also keeps your BP readings, optional pulse, when they were recorded, which vendor recorded them, and your follow-up and reminder history. Give only details needed for this purpose.</p>
+  <h2>Why your phone is checked</h2>
+  <p>Baton first checks your mobile number to find your record and avoid creating another record for you. For a new patient, an OTP (a one-time code) checks control of that number before your health record is created. A code cannot prove every aspect of a person's identity. An existing record does not need another OTP just to add a vendor.</p>
+  <p>In this demonstration, the code is shown in the development terminal and is not sent to a phone. Real phone verification needs a future SMS service. Giving an OTP is separate from agreeing to health-record use or optional reminders.</p>
+  <h2>Your agreement and who sees your history</h2>
+  <p>Before a new health record is submitted, the vendor asks whether you agree to Baton collecting and using your details and health records for record-keeping and follow-up coordination, with access by that vendor. The vendor records your agreement and the time. You may decline; the vendor should not create the record. You can still seek professional care outside Baton.</p>
+  <p>Your Baton BP and follow-up history is shared with every vendor associated with your record. If you want to use another vendor, that vendor must explain the sharing and ask for your agreement before being added. Adding that vendor lets them see your complete existing Baton BP and follow-up history, including reminder outcomes. It does not hide or replace earlier records: the original vendor and who took each measurement remain recorded.</p>
+  <p>Vendors who are not associated cannot open your patient history through Baton patient pages. Authorized administrators may access records to operate the platform under their permissions. The <a href="{% url 'core:privacy' %}">Privacy Policy</a> explains access and development storage in more detail.</p>
+  <h2>Reminders are your choice</h2>
+  <p>You can say yes or no separately to routine SMS and voice calls. Neither is required to register a patient or access records. Routine reminders currently use voice only, and all communication delivery is simulated. Read <a href="{% url 'core:communication_info' %}">Communication Consent Information</a> before making either choice.</p>
+  <h2>Questions, changes and withdrawal</h2>
+  <p>You can ask to see or correct your information, request deletion or restricted use, object where applicable, or withdraw agreement. Ask an associated vendor or use <a href="{% url 'core:contact' %}">Contact and Privacy Complaints</a>. An associated vendor can immediately record your withdrawal of routine SMS or voice consent through the patient record.</p>
+  <p>Requests about health-record use or vendor sharing need a separate assessment and any necessary restriction of access. The prototype has no automatic removal of associations or patient deletion button. Existing BP history must not be silently rewritten; lawful retention requirements will be assessed. See <a href="{% url 'core:retention' %}">Data Retention and Deletion</a>. Withdrawal does not make earlier lawful use unlawful.</p>
+  <p>You may also complain directly to the <a href="https://ndpc.gov.ng/contact/">Nigeria Data Protection Commission</a>. You do not have to contact Baton first.</p>
+  <h2>Project contact</h2>
+  {% include "core/policies/_operator.html" %}
+  <p class="helptext">The operator name and full address must be verified before real onboarding. Do not send medical records, passwords or verification codes in an initial email.</p>
+{% endblock %}

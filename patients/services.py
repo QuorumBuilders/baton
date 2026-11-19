@@ -46,6 +46,9 @@ def require_vendor(vendor):
 
 def complete_patient_registration(vendor, verification_id, phone_number, details):
     require_vendor(vendor)
+    details = dict(details)
+    if details.pop("processing_agreed", None) is not True:
+        raise ValidationError("Record the patient's agreement before creating a health record.")
     phone_number = normalize_mobile_number(phone_number)
     with transaction.atomic():
         verification = get_verified_registration(
@@ -62,12 +65,17 @@ def complete_patient_registration(vendor, verification_id, phone_number, details
         ).update(completed_at=now)
         if claimed != 1:
             raise VerificationError("Patient phone verification is unavailable.")
-        patient = Patient.objects.create(
+        patient = Patient(
             phone_number=phone_number,
             sms_consent_recorded_at=now,
             voice_consent_recorded_at=now,
+            processing_agreed_at=now,
+            processing_agreement_recorded_by=vendor,
             **details,
         )
+        patient._consent_recorded_by = vendor
+        patient._consent_source = "registration"
+        patient.save()
         VendorPatient.objects.create(patient=patient, vendor=vendor)
     return patient
 
@@ -86,6 +94,25 @@ def associate_existing_patient(vendor, patient, *, patient_agreed):
             },
         )
     return association, created
+
+
+def withdraw_patient_communications(vendor, patient_id, *, sms=False, voice=False):
+    require_vendor(vendor)
+    if sms is not True and voice is not True:
+        raise ValidationError("Select a communication channel to withdraw.")
+    with transaction.atomic():
+        patient = Patient.objects.select_for_update().get(pk=patient_id)
+        if not patient.vendors.filter(pk=vendor.pk).exists():
+            raise PermissionDenied
+        fields = []
+        for channel, withdraw in (("sms", sms), ("voice", voice)):
+            if withdraw is True:
+                setattr(patient, f"{channel}_consent", False)
+                fields.append(f"{channel}_consent")
+        patient._consent_recorded_by = vendor
+        patient._consent_source = "vendor"
+        patient.save(update_fields=fields)
+    return patient
 
 
 def send_patient_sms(*, patient_id, body, category, reference_id):

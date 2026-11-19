@@ -4,7 +4,8 @@
   <section class="account-page" aria-labelledby="page-title">
     <p class="eyebrow">Verified number {{ phone }}</p>
     <h1 id="page-title">Patient details</h1>
-    <p>Collect only the details needed for monitoring. Record each communication choice explicitly.</p>
+    <p>Collect only the details needed for record-keeping and follow-up coordination. Record the patient&rsquo;s actual agreement and each communication choice explicitly.</p>
+    {% include "patients/_privacy_notice.html" %}
     <form method="post">
       {% csrf_token %}
       {% include "accounts/_form_fields.html" %}

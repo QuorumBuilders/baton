@@ -4,7 +4,8 @@
   <section class="account-page" aria-labelledby="page-title">
     <p class="eyebrow">Vendor registration &middot; Step 2 of 3</p>
     <h1 id="page-title">Verify your phone</h1>
-    <p>Enter the six-digit code sent to the phone number you provided.</p>
+    <p>Enter the six-digit code for the phone number you provided. In the current prototype, SMS is simulated and the code is available only in the development terminal; nothing is sent to a phone.</p>
+    <p><a href="{% url 'core:communication_info' %}">OTP verification</a> is separate from optional patient communication consent.</p>
     <form method="post">
       {% csrf_token %}
       {% include "accounts/_form_fields.html" %}

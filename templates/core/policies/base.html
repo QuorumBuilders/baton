@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block content %}
+  <article class="page narrow policy-page" aria-labelledby="page-title">
+    <p class="eyebrow">Privacy and legal information</p>
+    <h1 id="page-title">{% block policy_title %}{% endblock %}</h1>
+    <p class="helptext">Prototype policy &middot; Updated 19 November 2026</p>
+    {% block policy_content %}{% endblock %}
+  </article>
+{% endblock %}

@@ -1,0 +1,6 @@
+<dl class="details-list">
+  <div><dt>Operator legal or operating name</dt><dd>{{ operator_name|default:"[To be verified: operator legal or operating name]" }}</dd></div>
+  <div><dt>Location</dt><dd>{{ operator_location|default:"[To be verified: operator location]" }}</dd></div>
+  <div><dt>Full physical address</dt><dd>{{ operator_address|default:"[To be verified: full physical address]" }}</dd></div>
+  <div><dt>Privacy and support contact</dt><dd>{% if contact_email %}<a href="mailto:{{ contact_email }}">{{ contact_email }}</a>{% else %}[To be verified: privacy and support contact]{% endif %}</dd></div>
+</dl>

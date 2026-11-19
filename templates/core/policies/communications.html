@@ -1,0 +1,18 @@
+{% extends "core/policies/base.html" %}
+{% block title %}Communication Consent Information | Baton{% endblock %}
+{% block policy_title %}Communication Consent Information{% endblock %}
+{% block policy_content %}
+  <p>SMS and voice are separate choices. The vendor must ask you and record your answer for each channel. Neither answer is selected in advance. Declining routine communications does not prevent patient registration, access to records or necessary phone verification.</p>
+  <p class="warning">This prototype simulates SMS and voice requests. It does not send real messages, place calls or play recordings to a patient. Real delivery requires a future provider and updated privacy information.</p>
+  <h2>SMS consent</h2>
+  <p>Routine SMS consent concerns optional patient follow-up communications by text. The application stores this choice and checks current SMS consent at its non-OTP patient SMS service boundary. There is currently no routine SMS reminder workflow: scheduled patient reminders use voice. Agreeing to SMS does not also agree to voice calls or marketing, or authorize new communication purposes without further information and any required consent.</p>
+  <h2>Voice-call consent</h2>
+  <p>Voice consent concerns scheduled-visit and overdue follow-up reminders, plus medication and general-health reminders between visits. Medication reminders repeat the intention to follow instructions already provided by a healthcare professional; they do not name or prescribe medication or doses. New registrations choose English or Nigerian Pidgin. Current voice recording references are placeholders and calls are simulated.</p>
+  <p>Reminder schedules may exist even if you decline calls, but the application checks current voice consent before invoking the voice adapter. SMS consent cannot authorize a voice reminder. Any future real service must also explain privacy risks, including someone else answering a shared phone.</p>
+  <h2>OTP verification is a different process</h2>
+  <p>An OTP verifies control of the phone used for a new vendor or patient registration. It is a transactional verification request, not agreement to routine SMS, voice reminders, vendor sharing or general health-data processing. Declining or withdrawing routine-channel consent does not automatically stop necessary verification. Never share an OTP outside the registration you requested.</p>
+  <h2>How to withdraw</h2>
+  <p>Ask any associated vendor to open your patient record and choose <strong>Withdraw communication consent</strong>. They can stop SMS, voice or both, based on your request. You can also use <a href="{% url 'core:contact' %}">Contact and Privacy Complaints</a>; the contact route is handled by people and is not an automatic opt-out endpoint. No SMS reply service or automatic unsubscribe keyword is integrated.</p>
+  <p>Once a withdrawal is recorded, future routine attempts through that channel are blocked. It cannot recall an invocation already made. The other channel keeps its existing choice, and patient records and follow-ups remain accessible. Earlier consent timestamps and changes remain in the audit history rather than being silently overwritten. Already processed or skipped reminders are not automatically replayed.</p>
+  <p>Withdrawal of routine communication consent is separate from requests to stop health-record processing or vendor sharing. Use the <a href="{% url 'core:patient_privacy' %}">Patient Privacy and Data-Sharing Notice</a> and <a href="{% url 'core:retention' %}">Data Retention and Deletion</a> for those requests.</p>
+{% endblock %}

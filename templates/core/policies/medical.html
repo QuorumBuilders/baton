@@ -1,0 +1,14 @@
+{% extends "core/policies/base.html" %}
+{% block title %}Medical Disclaimer | Baton{% endblock %}
+{% block policy_title %}Medical Disclaimer{% endblock %}
+{% block policy_content %}
+  <p>Baton is a record-keeping and follow-up coordination platform. It stores BP measurements entered by vendors and coordinates visit and general-health reminders.</p>
+  <ul>
+    <li>Baton does not diagnose hypertension or interpret BP measurements.</li>
+    <li>It does not prescribe medication, recommend treatment or specify dosage.</li>
+    <li>It does not provide clinical decision support or replace a qualified medical professional.</li>
+    <li>Medication reminders repeat the intention to follow instructions already given by a healthcare professional. They do not change those instructions.</li>
+  </ul>
+  <p>Automatic follow-up dates are scheduling intervals, not an assessment of your medical condition. An overdue flag tells a vendor that a scheduled follow-up needs attention; it is not a diagnosis or clinical risk assessment.</p>
+  <p>Seek appropriate professional care for BP questions, symptoms, medication questions or other medical concerns. For an urgent concern, seek prompt medical help; do not wait for a Baton reminder. The prototype does not deliver real SMS or voice calls and is not an emergency service.</p>
+{% endblock %}

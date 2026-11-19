@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Withdraw communication consent | Baton{% endblock %}
+{% block content %}
+  <section class="account-page" aria-labelledby="page-title">
+    <p class="eyebrow">{{ patient.first_name }} {{ patient.last_name }}</p>
+    <h1 id="page-title">Withdraw communication consent</h1>
+    <p>Record the patient&rsquo;s request to stop SMS, voice or both. Select only the channels they asked to stop. Earlier choices remain in the consent history.</p>
+    <p>Current choices: SMS <strong>{{ patient.sms_consent|yesno:"Yes,No" }}</strong>; voice <strong>{{ patient.voice_consent|yesno:"Yes,No" }}</strong>.</p>
+    <p>Once recorded, future routine communications through the selected channels are blocked. Patient records and follow-ups remain available, and necessary OTP verification is separate.</p>
+    <p>Explain the <a href="{% url 'core:communication_info' %}">Communication Consent Information</a>. Requests about health-record processing or vendor sharing need a separate assessment through <a href="{% url 'core:contact' %}">Contact and Privacy Complaints</a> and the <a href="{% url 'core:patient_privacy' %}">Patient Privacy and Data-Sharing Notice</a>.</p>
+    <form method="post">
+      {% csrf_token %}
+      {% include "accounts/_form_fields.html" %}
+      <button type="submit">Record withdrawal</button>
+    </form>
+    <p class="form-links"><a href="{% url 'patients:detail' patient.id %}">Back to patient record</a></p>
+  </section>
+{% endblock %}

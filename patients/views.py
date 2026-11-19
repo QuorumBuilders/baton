@@ -21,6 +21,7 @@ from accounts.services import ResendCooldown, VerificationError, get_verified_re
 
 from .forms import (
     AssociationConfirmationForm,
+    CommunicationWithdrawalForm,
     FollowUpRescheduleForm,
     FollowUpSelectionForm,
     MeasurementForm,
@@ -38,6 +39,7 @@ from .services import (
     record_measurement,
     require_vendor,
     reschedule_active_followup,
+    withdraw_patient_communications,
 )
 
 REGISTRATION_KEY = "patient_registration"
@@ -121,7 +123,7 @@ def register(request):
             pending["verification_id"] = str(verification.pk)
         if not form.errors:
             request.session[REGISTRATION_KEY] = pending
-            messages.info(request, "A verification code has been sent to the patient's phone.")
+            messages.info(request, "A patient phone-verification code has been requested.")
             return redirect("patients:verify")
     return render(request, "patients/register.html", {"form": form})
 
@@ -188,7 +190,7 @@ def resend_otp(request):
     else:
         pending["verification_id"] = str(verification.pk)
         request.session[REGISTRATION_KEY] = pending
-        messages.info(request, "A new verification code has been sent to the patient's phone.")
+        messages.info(request, "A new patient phone-verification code has been requested.")
     return redirect("patients:verify")
 
 
@@ -252,6 +254,22 @@ def followup_history(request, patient_id):
         "followups": Paginator(followups, 20).get_page(request.GET.get("page")),
         "today": timezone.localdate(),
     })
+
+
+@vendor_required
+@sensitive_post_parameters()
+@require_http_methods(["GET", "POST"])
+def communication_consent(request, patient_id):
+    patient = associated_patient(request, patient_id)
+    form = CommunicationWithdrawalForm(request.POST if request.method == "POST" else None)
+    if request.method == "POST" and form.is_valid():
+        withdraw_patient_communications(
+            request.user, patient.pk,
+            sms=form.cleaned_data["withdraw_sms"], voice=form.cleaned_data["withdraw_voice"],
+        )
+        messages.success(request, "The selected communication choices have been withdrawn. Patient records remain available.")
+        return redirect("patients:detail", patient_id=patient.pk)
+    return render(request, "patients/communication_consent.html", {"patient": patient, "form": form})
 
 
 @vendor_required

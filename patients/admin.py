@@ -3,6 +3,7 @@ from django.contrib import admin, messages
 from .models import (
     BloodPressureMeasurement,
     CommunicationAttempt,
+    CommunicationConsentRecord,
     FollowUp,
     FollowUpRule,
     FollowUpScheduleChange,
@@ -37,11 +38,30 @@ class PatientAdmin(admin.ModelAdmin):
     )
     search_fields = ("id", "first_name", "last_name", "phone_number")
     list_filter = ("sms_consent", "voice_consent", "preferred_language")
-    readonly_fields = ("id", "registered_at")
+    readonly_fields = (
+        "id", "registered_at", "sms_consent_recorded_at", "voice_consent_recorded_at",
+        "processing_agreed_at", "processing_agreement_recorded_by",
+    )
+
+    def has_add_permission(self, request):
+        # Use the vendor registration flow to verify the phone and record
+        # informed patient agreement rather than bypassing those checks.
+        return False
+
+    def save_model(self, request, obj, form, change):
+        obj._consent_recorded_by = request.user
+        obj._consent_source = "admin"
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(CommunicationConsentRecord)
+class CommunicationConsentRecordAdmin(ReadOnlyHistoryAdmin):
+    list_display = ("patient", "channel", "agreed", "recorded_at", "recorded_by", "source")
+    list_filter = ("channel", "agreed", "source")
 
 
 @admin.register(VendorPatient)
-class VendorPatientAdmin(admin.ModelAdmin):
+class VendorPatientAdmin(ReadOnlyHistoryAdmin):
     list_display = ("patient", "vendor", "created_at", "sharing_confirmed_at")
     search_fields = (
         "patient__first_name",

@@ -43,6 +43,16 @@
       {% block content %}{% endblock %}
     </main>
     <footer class="site-footer">
+      <nav aria-label="Privacy and legal information">
+        <a href="{% url 'core:privacy' %}">Privacy Policy</a>
+        <a href="{% url 'core:terms' %}">Terms of Use</a>
+        <a href="{% url 'core:patient_privacy' %}">Patient privacy</a>
+        <a href="{% url 'core:communication_info' %}">Communication consent</a>
+        <a href="{% url 'core:cookies' %}">Cookie Policy</a>
+        <a href="{% url 'core:retention' %}">Retention and deletion</a>
+        <a href="{% url 'core:medical_disclaimer' %}">Medical Disclaimer</a>
+        <a href="{% url 'core:contact' %}">Contact and complaints</a>
+      </nav>
       <p>&copy; {% now "Y" %} Baton</p>
     </footer>
   </body>

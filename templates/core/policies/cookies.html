@@ -1,0 +1,15 @@
+{% extends "core/policies/base.html" %}
+{% block title %}Cookie Policy | Baton{% endblock %}
+{% block policy_title %}Cookie Policy{% endblock %}
+{% block policy_content %}
+  <p>Cookies are small values stored by your browser. Baton currently uses Django cookies for login, registration, form security and temporary status messages. The application includes no analytics, advertising or tracking cookies and no third-party tracking scripts.</p>
+  <h2>Session cookie: <code>{{ session_cookie_name }}</code></h2>
+  <p>This identifies your database session, keeping vendor login and unfinished registration or measurement review linked to the browser. Patient details and measurement drafts are stored in the server-side session, not in this cookie. In the current configuration, the session lifetime is {{ session_cookie_days }} days; logout clears the session. The cookie is HttpOnly, uses SameSite=Lax and requires HTTPS when debugging is disabled.</p>
+  <h2>CSRF cookie: <code>{{ csrf_cookie_name }}</code></h2>
+  <p>This helps Django check that a submitted form came from your browser rather than an unauthorized site. Forms also contain a matching token. The configured cookie lifetime is {{ csrf_cookie_days }} days, and using forms can renew it. It uses SameSite=Lax and requires HTTPS when debugging is disabled. It is not an advertising identifier.</p>
+  <h2>Temporary message cookie: <code>messages</code></h2>
+  <p>Django's default fallback message storage can place signed status messages, such as registration or logout confirmations, in this cookie. It is a browser-session cookie and is normally cleared after messages are displayed. When messages do not fit, Django uses the database session instead. It uses HttpOnly and SameSite=Lax, with HTTPS required when debugging is disabled, following the session cookie settings.</p>
+  <h2>Your choices</h2>
+  <p>You can clear or block cookies in your browser. Blocking necessary cookies can prevent login, registration or secure form submissions. Public policy information remains available without signing in. No optional-cookie consent banner is included because the current application has no optional tracking cookies.</p>
+  <p>Cookie lifetimes describe browser/session operation, not the retention period for patient health records. See the <a href="{% url 'core:privacy' %}">Privacy Policy</a> and <a href="{% url 'core:retention' %}">Data Retention and Deletion</a>. This policy must be reviewed before adding any new cookie purpose.</p>
+{% endblock %}

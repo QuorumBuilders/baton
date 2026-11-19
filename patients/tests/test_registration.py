@@ -9,7 +9,7 @@ from django.utils import timezone
 
 from accounts.models import PhoneVerification
 from accounts.services import VerificationError, get_verified_registration, issue_otp, verify_otp
-from patients.models import Patient, VendorPatient
+from patients.models import CommunicationConsentRecord, Patient, VendorPatient
 from patients.services import complete_patient_registration
 from patients.views import REGISTRATION_KEY
 
@@ -51,6 +51,7 @@ class PatientRegistrationTests(TestCase):
 
     def details(self, **overrides):
         data = {
+            "processing_agreed": "on",
             "first_name": " Ada ",
             "last_name": " Okafor ",
             "date_of_birth": "1980-05-12",
@@ -78,9 +79,68 @@ class PatientRegistrationTests(TestCase):
         self.assertFalse(patient.voice_consent)
         self.assertIsNotNone(patient.sms_consent_recorded_at)
         self.assertIsNotNone(patient.voice_consent_recorded_at)
+        self.assertIsNotNone(patient.processing_agreed_at)
+        self.assertEqual(patient.processing_agreement_recorded_by, self.vendor)
+        records = patient.communication_consent_history.all()
+        self.assertEqual(records.count(), 2)
+        self.assertEqual(set(records.values_list("channel", "agreed")), {("sms", True), ("voice", False)})
+        self.assertTrue(all(record.recorded_by == self.vendor and record.source == "registration" for record in records))
         self.assertTrue(patient.vendors.filter(pk=self.vendor.pk).exists())
         verification.refresh_from_db()
         self.assertIsNotNone(verification.completed_at)
+
+    def test_processing_agreement_is_required_without_claiming_the_verified_grant(self):
+        verification = self.start()
+        self.verify()
+        for value in ("", False):
+            response = self.details(processing_agreed=value)
+            self.assertIn("processing_agreed", response.context["form"].errors)
+            self.assertFalse(Patient.objects.exists())
+            self.assertFalse(CommunicationConsentRecord.objects.exists())
+            verification.refresh_from_db()
+            self.assertIsNone(verification.completed_at)
+        with self.assertRaises(ValidationError):
+            self.create_with_grant(verification, processing_agreed=False)
+
+    def test_all_independent_communication_choices_allow_registration(self):
+        for index, (sms, voice) in enumerate(((False, False), (False, True), (True, False), (True, True))):
+            with self.subTest(sms=sms, voice=voice):
+                verification = self.start(phone=f"0805067544{index}")
+                self.verify()
+                response = self.details(sms_consent="yes" if sms else "no", voice_consent="yes" if voice else "no")
+                patient = Patient.objects.get(phone_number=verification.phone_number)
+                self.assertRedirects(response, reverse("patients:detail", args=[patient.pk]))
+                self.assertEqual((patient.sms_consent, patient.voice_consent), (sms, voice))
+                self.assertEqual(set(patient.communication_consent_history.values_list("channel", "agreed")), {("sms", sms), ("voice", voice)})
+
+    def test_notices_precede_collection_and_consent_is_not_preselected(self):
+        response = self.client.get(reverse("patients:register"))
+        body = response.content.decode().split('<footer class="site-footer">')[0]
+        self.assertLess(body.index(reverse("core:patient_privacy")), body.index('<form method="post">', body.index('<h1')))
+        self.start()
+        self.verify()
+        response = self.client.get(reverse("patients:register_details"))
+        for field in ("processing_agreed", "sms_consent", "voice_consent"):
+            self.assertNotIn("checked", str(response.context["form"][field]))
+        body = response.content.decode().split('<footer class="site-footer">')[0]
+        for route in ("patient_privacy", "privacy", "communication_info", "contact"):
+            self.assertIn(reverse(f"core:{route}"), body)
+
+    def test_association_notice_requires_agreement_and_preserves_choices(self):
+        patient = make_patient()
+        before = list(patient.communication_consent_history.values())
+        self.client.post(reverse("patients:register"), {"phone_number": patient.local_phone})
+        response = self.client.get(reverse("patients:associate"))
+        self.assertNotIn("checked", str(response.context["form"]["patient_agreed"]))
+        body = response.content.decode().split('<footer class="site-footer">')[0]
+        self.assertIn(reverse("core:patient_privacy"), body)
+        self.assertIn(reverse("core:communication_info"), body)
+        self.assertNotIn(patient.first_name, body)
+        response = self.client.post(reverse("patients:associate"), {})
+        self.assertIn("patient_agreed", response.context["form"].errors)
+        self.assertFalse(patient.vendors.exists())
+        self.client.post(reverse("patients:associate"), {"patient_agreed": "on"})
+        self.assertEqual(before, list(patient.communication_consent_history.values()))
 
     def delayed_verification(self):
         issued_at = timezone.now()
@@ -158,6 +218,7 @@ class PatientRegistrationTests(TestCase):
 
     def create_with_grant(self, verification, **overrides):
         details = {
+            "processing_agreed": True,
             "first_name": "Prototype", "last_name": "Patient",
             "date_of_birth": date(1990, 1, 1), "preferred_language": "English",
             "sms_consent": False, "voice_consent": False,

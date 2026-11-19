@@ -1,0 +1,26 @@
+{% extends "core/policies/base.html" %}
+{% block title %}Terms of Use | Baton{% endblock %}
+{% block policy_title %}Terms of Use{% endblock %}
+{% block policy_content %}
+  <p>Baton is a prototype for patient record-keeping and follow-up coordination by pharmacy and chemist vendors. Use it only for authorized purposes within your professional role. See the <a href="{% url 'core:privacy' %}">Privacy Policy</a> and <a href="{% url 'core:contact' %}">operator and contact details</a>.</p>
+  <h2>Vendor responsibilities</h2>
+  <ul>
+    <li>Provide accurate business and phone information. Phone verification verifies control of the number; it does not verify professional licensing or endorse a vendor.</li>
+    <li>Keep your password or PIN and OTPs confidential, protect devices, and log out of shared devices. Report suspected unauthorized access through the project contact.</li>
+    <li>Explain the patient notice before collecting information, record the patient's actual agreement where requested, and respect independent SMS and voice choices. Never confirm agreement on a patient's behalf without their affirmative choice.</li>
+    <li>Enter accurate patient and BP information and review measurements before saving. Saved measurements remain historical records; request a reviewed correction if you discover an error.</li>
+    <li>Access associated patient records only for authorized record-keeping and follow-up purposes. Technical access to a shared history does not authorize unrelated use or disclosure.</li>
+  </ul>
+  <h2>Prohibited use</h2>
+  <p>Do not attempt unauthorized access, probe other patients' numbers without a legitimate registration request, circumvent permissions, impersonate patients or vendors, falsify records or consent, or disclose health information without authorization and a lawful basis. Do not use the platform for harassment, advertising, unlawful activity or interference with its operation.</p>
+  <h2>Availability and limitations</h2>
+  <p>The prototype may be interrupted, changed or unavailable, and has no guaranteed availability or reminder delivery. Current SMS and voice adapters only simulate communications. Baton is not an emergency service. Vendors remain responsible for appropriate professional follow-up and must not rely solely on an automated schedule or reminder. Read the <a href="{% url 'core:medical_disclaimer' %}">Medical Disclaimer</a>.</p>
+  <h2>Suspension or termination</h2>
+  <p>Authorized administrators can deactivate vendor accounts. Access may be suspended or terminated to address misuse, security concerns, legal requirements or discontinued prototype operation. Where practicable and lawful, the operator should explain the reason and provide a way to raise concerns. Account deactivation does not automatically delete patient history or remove patients' privacy rights.</p>
+  <h2>Content and permitted use</h2>
+  <p>Baton software, branding and platform content remain subject to the rights of their respective owners. You may use the interface and notices for authorized platform activities and explaining them to patients. This does not transfer intellectual property ownership or authorize misuse of branding. Recording patient information does not waive the patient's rights or grant unrestricted reuse of that information.</p>
+  <h2>Liability and statutory rights</h2>
+  <p>To the extent permitted by applicable law, the operator does not guarantee uninterrupted operation, complete accuracy of vendor-entered information or successful reminder delivery. Responsibility for loss depends on the circumstances and applicable law. No term excludes liability that cannot lawfully be excluded, limits a patient's statutory data protection rights, or prevents complaints to the NDPC or access to legal remedies.</p>
+  <h2>Updates</h2>
+  <p>Changes will be published here with an updated date. Material changes affecting use should be communicated before they take effect. Revised terms do not create patient consent or authorize a new use of existing health records. Questions or account concerns can be raised through <a href="{% url 'core:contact' %}">Contact and Privacy Complaints</a>.</p>
+{% endblock %}
