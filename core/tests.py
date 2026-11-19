@@ -123,3 +123,19 @@ class EnvironmentSettingsTests(SimpleTestCase):
         with patch.dict(os.environ, environment, clear=True):
             with self.assertRaisesMessage(ImproperlyConfigured, "DJANGO_DEBUG"):
                 runpy.run_path(self.settings_path)
+
+    def test_patient_registration_lifetime_defaults_to_30_minutes_and_can_be_configured(self):
+        environment = {"DJANGO_SECRET_KEY": "test-only-secret"}
+        with patch.dict(os.environ, environment, clear=True):
+            self.assertEqual(runpy.run_path(self.settings_path)["PATIENT_REGISTRATION_TTL_SECONDS"], 1800)
+        environment["PATIENT_REGISTRATION_TTL_SECONDS"] = "1200"
+        with patch.dict(os.environ, environment, clear=True):
+            self.assertEqual(runpy.run_path(self.settings_path)["PATIENT_REGISTRATION_TTL_SECONDS"], 1200)
+
+    def test_invalid_patient_registration_lifetime_is_rejected(self):
+        for value in ("0", "-1", "invalid"):
+            with self.subTest(value=value):
+                environment = {"DJANGO_SECRET_KEY": "test-only-secret", "PATIENT_REGISTRATION_TTL_SECONDS": value}
+                with patch.dict(os.environ, environment, clear=True):
+                    with self.assertRaisesMessage(ImproperlyConfigured, "PATIENT_REGISTRATION_TTL_SECONDS"):
+                        runpy.run_path(self.settings_path)

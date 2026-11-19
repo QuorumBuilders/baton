@@ -11,13 +11,19 @@ from accounts.phone_numbers import local_phone_number, normalize_mobile_number
 
 
 class Patient(models.Model):
+    class PreferredLanguage(models.TextChoices):
+        ENGLISH = "English", "English"
+        NIGERIAN_PIDGIN = "Nigerian Pidgin", "Nigerian Pidgin"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     first_name = models.CharField(max_length=150)
     last_name = models.CharField(max_length=150)
     phone_number = models.CharField(max_length=16, unique=True)
     date_of_birth = models.DateField()
     sex = models.CharField(max_length=30, blank=True)
-    preferred_language = models.CharField(max_length=80)
+    preferred_language = models.CharField(
+        max_length=80, choices=PreferredLanguage.choices
+    )
     sms_consent = models.BooleanField(default=False)
     sms_consent_recorded_at = models.DateTimeField()
     voice_consent = models.BooleanField(default=False)
@@ -249,6 +255,9 @@ class ReminderSchedule(models.Model):
         NOT_ATTEMPTED = "not_attempted", "Not attempted"
         PENDING = "pending", "Pending provider delivery"
         SENT = "sent", "Sent"
+        DELIVERED = "delivered", "Delivered"
+        SIMULATED = "simulated", "Simulated"
+        SKIPPED = "skipped", "Skipped"
         FAILED = "failed", "Failed"
 
     patient = models.ForeignKey(Patient, on_delete=models.PROTECT, related_name="reminder_schedules")
@@ -288,6 +297,47 @@ class ReminderSchedule(models.Model):
 
     def __str__(self):
         return f"{self.get_event_display()} for {self.patient}"
+
+
+class CommunicationAttempt(models.Model):
+    class Outcome(models.TextChoices):
+        PROCESSING = "processing", "Processing"
+        DELIVERED = "delivered", "Delivered"
+        SIMULATED = "simulated", "Simulated"
+        SKIPPED = "skipped", "Skipped"
+        FAILED = "failed", "Failed"
+
+    reminder = models.OneToOneField(
+        ReminderSchedule,
+        on_delete=models.PROTECT,
+        related_name="communication_attempt",
+    )
+    channel = models.CharField(max_length=5, choices=ReminderSchedule.Channel.choices)
+    recipient = models.CharField(max_length=16)
+    category = models.CharField(max_length=20)
+    language = models.CharField(max_length=30, blank=True)
+    recording_reference = models.CharField(max_length=255, blank=True)
+    adapter = models.CharField(max_length=255, blank=True)
+    delivery_mode = models.CharField(max_length=80, blank=True)
+    outcome = models.CharField(
+        max_length=10, choices=Outcome.choices, default=Outcome.PROCESSING
+    )
+    reason = models.CharField(max_length=500, blank=True)
+    provider_reference = models.CharField(max_length=255, blank=True)
+    attempted_at = models.DateTimeField(default=timezone.now)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-attempted_at", "-id"]
+
+    def clean(self):
+        if self.reminder_id and self.channel != self.reminder.channel:
+            raise ValidationError(
+                {"channel": "The communication channel must match the reminder channel."}
+            )
+
+    def __str__(self):
+        return f"{self.get_outcome_display()} {self.get_channel_display()} for reminder {self.reminder_id}"
 
 
 class VendorNotification(models.Model):

@@ -1,6 +1,7 @@
 from contextlib import redirect_stdout
 from datetime import timedelta
 from io import StringIO
+import re
 from unittest.mock import Mock, patch
 
 from django.contrib.auth.hashers import check_password
@@ -26,7 +27,8 @@ class OTPTests(TestCase):
     def issue(self, phone_number="08012345678"):
         with self.captureOnCommitCallbacks(execute=True):
             verification = issue_otp(phone_number)
-        return verification, self.delivery.send.call_args.args[1]
+        message = self.delivery.send.call_args.args[0]
+        return verification, re.search(r"\b([0-9]{6})\b", message.body).group(1)
 
     def allow_resend(self):
         PhoneVerification.objects.filter(pk=self.verification.pk).update(
@@ -38,7 +40,13 @@ class OTPTests(TestCase):
         self.assertNotEqual(self.verification.token_hash, self.code)
         self.assertTrue(check_password(self.code, self.verification.token_hash))
         self.assertEqual(len(self.code), 6)
-        self.delivery.send.assert_called_once_with("+2348012345678", self.code)
+        self.delivery.send.assert_called_once()
+        message = self.delivery.send.call_args.args[0]
+        self.assertEqual(message.recipient, "+2348012345678")
+        self.assertEqual(message.category, "vendor_otp")
+        self.assertEqual(message.reference_id, str(self.verification.pk))
+        self.assertIn(self.code, message.body)
+        self.assertIn("Do not share", message.body)
 
     def test_successful_verification_is_single_use(self):
         verify_otp(self.verification.pk, "08012345678", self.code)
@@ -119,6 +127,15 @@ class OTPTests(TestCase):
         )
         with self.assertRaises(VerificationError):
             complete_registration(self.verification.pk, "08012345678", "Community Pharmacy", "482953")
+
+    def test_vendor_registration_deadline_stays_at_original_otp_expiry(self):
+        expires_at = self.verification.expires_at
+        with patch("accounts.services.timezone.now", return_value=expires_at - timedelta(seconds=1)):
+            verify_otp(self.verification.pk, "08012345678", self.code)
+        with patch("accounts.services.timezone.now", return_value=expires_at):
+            with self.assertRaises(VerificationError):
+                complete_registration(self.verification.pk, "08012345678", "Community Pharmacy", "482953")
+        self.assertFalse(User.objects.exists())
 
 
 class DeliveryTests(SimpleTestCase):

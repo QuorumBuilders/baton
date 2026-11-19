@@ -1,26 +1,38 @@
+"""Backward-compatible OTP delivery imports.
+
+New code uses the provider-independent communication adapters directly.
+"""
+
+from communications.adapters import (
+    ConsoleSMSAdapter,
+    DeliveryUnavailable,
+)
+from communications.content import otp_sms_message
 from django.conf import settings
-from django.core.exceptions import ImproperlyConfigured
 from django.utils.module_loading import import_string
 
 
-class DeliveryUnavailable(Exception):
-    pass
-
-
 class ConsoleOTPBackend:
-    """Development delivery only. Replace send(phone_number, code) for production."""
+    """Compatibility wrapper for the former OTP-only console backend."""
 
     def __init__(self):
-        if not settings.DEBUG:
-            raise ImproperlyConfigured("Console OTP delivery requires DEBUG=True.")
+        self.adapter = ConsoleSMSAdapter()
 
     def send(self, phone_number, code):
-        if not settings.DEBUG:
-            raise ImproperlyConfigured("Console OTP delivery requires DEBUG=True.")
-        print(f"[Baton development OTP] {phone_number}: {code}", flush=True)
+        return self.adapter.send(
+            otp_sms_message(
+                recipient=phone_number,
+                code=code,
+                purpose="vendor",
+                reference_id="legacy-otp",
+            )
+        )
 
 
 def get_delivery_backend():
     if not settings.OTP_DELIVERY_BACKEND:
         raise DeliveryUnavailable("Phone verification delivery is not configured.")
-    return import_string(settings.OTP_DELIVERY_BACKEND)()
+    backend = import_string(settings.OTP_DELIVERY_BACKEND)()
+    if isinstance(backend, ConsoleSMSAdapter):
+        return ConsoleOTPBackend()
+    return backend

@@ -25,6 +25,27 @@
                 {% endfor %}
               </ul>
             {% endif %}
+            {% if followup.reminders.all %}
+              <h3>Reminder and communication history</h3>
+              <ul class="record-list compact">
+                {% for reminder in followup.reminders.all %}
+                  <li>
+                    <div>
+                      <strong>{{ reminder.get_event_display }}</strong>
+                      <span>Scheduled {{ reminder.scheduled_for|date:"j M Y, H:i" }} &middot; {{ reminder.get_channel_display }}</span>
+                      <span>Reminder: {{ reminder.get_processing_status_display }} &middot; Communication: {{ reminder.get_delivery_status_display }}</span>
+                      {% with attempt=reminder.communication_attempt %}
+                        {% if attempt %}
+                          <span>{{ attempt.get_outcome_display }} &middot; Processed {{ attempt.attempted_at|date:"j M Y, H:i" }}</span>
+                          {% if attempt.outcome == "simulated" %}<span>Development simulation; no phone call was made.</span>{% endif %}
+                          {% if attempt.reason %}<span>Reason: {{ attempt.reason }}</span>{% endif %}
+                        {% endif %}
+                      {% endwith %}
+                    </div>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% endif %}
           </li>
         {% endfor %}
       </ol>

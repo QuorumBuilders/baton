@@ -10,7 +10,9 @@ from django.db import IntegrityError, transaction
 from django.db.models import F
 from django.utils import timezone
 
-from .delivery import get_delivery_backend
+from communications.adapters import DeliveryUnavailable, get_sms_adapter as get_delivery_backend
+from communications.content import otp_sms_message
+
 from .models import PhoneVerification, User
 from .phone_numbers import normalize_phone_number
 from .validators import validate_vendor_credential
@@ -58,20 +60,41 @@ def issue_otp(phone_number, *, purpose="vendor"):
             token_hash=token_hash,
             expires_at=now + timedelta(seconds=settings.OTP_TTL_SECONDS),
         )
-        transaction.on_commit(lambda: delivery.send(phone_number, code))
+        message = otp_sms_message(
+            recipient=phone_number,
+            code=code,
+            purpose=purpose,
+            reference_id=verification.pk,
+        )
+        transaction.on_commit(lambda: _send_verification_message(delivery, message, verification.pk))
     return verification
 
 
-def _current_verification(verification_id, phone_number, *, purpose="vendor"):
+def _send_verification_message(delivery, message, verification_id):
+    try:
+        delivery.send(message)
+    except Exception:
+        PhoneVerification.objects.filter(pk=verification_id).update(invalidated_at=timezone.now())
+        # Catch provider failures here so a DEBUG error page cannot expose the
+        # plaintext OTP or the provider's sensitive exception payload.
+        raise DeliveryUnavailable("Phone verification delivery is unavailable.") from None
+
+
+def _current_verification(verification_id, phone_number, *, purpose="vendor", for_registration=False):
     try:
         phone_number = normalize_phone_number(phone_number)
         verification = PhoneVerification.objects.get(pk=verification_id, phone_number=phone_number, purpose=purpose)
     except (PhoneVerification.DoesNotExist, ValidationError, ValueError, TypeError):
         raise VerificationError("The verification is unavailable. Request a new code.") from None
+    expires_at = verification.expires_at
+    # Patient creation has its own window after verification; OTP validation
+    # and vendor registration still use the original code expiry.
+    if for_registration and purpose == "patient" and verification.consumed_at is not None:
+        expires_at = verification.consumed_at + timedelta(seconds=settings.PATIENT_REGISTRATION_TTL_SECONDS)
     if (
         verification.invalidated_at is not None
         or verification.completed_at is not None
-        or verification.expires_at <= timezone.now()
+        or expires_at <= timezone.now()
     ):
         raise VerificationError("The verification is unavailable. Request a new code.")
     return verification
@@ -101,7 +124,9 @@ def verify_otp(verification_id, phone_number, code, *, purpose="vendor"):
 
 
 def get_verified_registration(verification_id, phone_number, *, purpose="vendor"):
-    verification = _current_verification(verification_id, phone_number, purpose=purpose)
+    verification = _current_verification(
+        verification_id, phone_number, purpose=purpose, for_registration=True
+    )
     if verification.consumed_at is None:
         raise VerificationError("Verify your phone number before creating an account.")
     return verification

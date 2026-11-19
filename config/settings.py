@@ -64,11 +64,22 @@ def positive_environment_integer(name, default):
 
 
 OTP_TTL_SECONDS = positive_environment_integer("OTP_TTL_SECONDS", 300)
+PATIENT_REGISTRATION_TTL_SECONDS = positive_environment_integer("PATIENT_REGISTRATION_TTL_SECONDS", 1800)
 OTP_MAX_ATTEMPTS = positive_environment_integer("OTP_MAX_ATTEMPTS", 5)
 OTP_RESEND_COOLDOWN_SECONDS = positive_environment_integer("OTP_RESEND_COOLDOWN_SECONDS", 60)
-OTP_DELIVERY_BACKEND = os.environ.get(
-    "OTP_DELIVERY_BACKEND", "accounts.delivery.ConsoleOTPBackend" if DEBUG else ""
+_development_sms_backend = "communications.adapters.ConsoleSMSAdapter" if DEBUG else ""
+SMS_DELIVERY_BACKEND = os.environ.get(
+    "SMS_DELIVERY_BACKEND",
+    os.environ.get("OTP_DELIVERY_BACKEND", _development_sms_backend),
 )
+if SMS_DELIVERY_BACKEND == "accounts.delivery.ConsoleOTPBackend":
+    SMS_DELIVERY_BACKEND = "communications.adapters.ConsoleSMSAdapter"
+VOICE_DELIVERY_BACKEND = os.environ.get(
+    "VOICE_DELIVERY_BACKEND",
+    "communications.adapters.MockVoiceAdapter" if DEBUG else "",
+)
+# Kept as a compatibility alias for existing local configuration and tests.
+OTP_DELIVERY_BACKEND = os.environ.get("OTP_DELIVERY_BACKEND", SMS_DELIVERY_BACKEND)
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -107,6 +118,9 @@ DATABASES = {
         # SQLite has no row locks. Acquire the writer lock before transaction reads
         # so concurrent confirmations serialize rather than upgrade read locks.
         "OPTIONS": {"transaction_mode": "IMMEDIATE", "timeout": 20},
+        # Shared in-memory SQLite returns SQLITE_LOCKED without waiting for other
+        # writers. Test the same file-backed locking used in local development.
+        "TEST": {"NAME": BASE_DIR / "test.sqlite3"},
     }
 }
 

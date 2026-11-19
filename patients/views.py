@@ -14,7 +14,7 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.debug import sensitive_post_parameters
 from django.views.decorators.http import require_http_methods, require_POST
 
-from accounts.delivery import DeliveryUnavailable
+from communications.adapters import DeliveryUnavailable
 from accounts.forms import OTPVerificationForm
 from accounts.phone_numbers import local_phone_number, normalize_mobile_number
 from accounts.services import ResendCooldown, VerificationError, get_verified_registration, issue_otp, verify_otp
@@ -243,7 +243,10 @@ def followup_history(request, patient_id):
     patient = associated_patient(request, patient_id)
     followups = patient.followups.select_related(
         "scheduled_by", "scheduling_rule", "fulfilled_by_measurement__recording_vendor"
-    ).prefetch_related("schedule_changes__changed_by")
+    ).prefetch_related(
+        "schedule_changes__changed_by",
+        "reminders__communication_attempt",
+    )
     return render(request, "patients/followups.html", {
         "patient": patient,
         "followups": Paginator(followups, 20).get_page(request.GET.get("page")),

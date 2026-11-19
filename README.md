@@ -3,8 +3,10 @@
 Baton is a health-tech platform built as a single Django monolith. It provides a
 public landing page, verified vendor registration, session authentication and
 Django administration, plus vendor-facing patient registration, blood pressure
-history and centralized follow-up coordination. The frontend uses Django
-Templates, HTML and CSS; all core workflows work without JavaScript.
+history, centralized follow-up coordination and simulated communication delivery.
+The frontend uses Django Templates, HTML and CSS; all core workflows work without
+JavaScript. **The prototype does not send real SMS messages or place real voice
+calls.** No external provider credentials are required for local development.
 
 ## Prerequisites
 
@@ -57,6 +59,8 @@ Keep `.env` private. It and the local SQLite database are ignored by Git.
 | `DJANGO_SECRET_KEY` | Unique random Django secret key | Required; no fallback |
 | `DJANGO_DEBUG` | Enable local debug pages and development static serving | `False` |
 | `DJANGO_ALLOWED_HOSTS` | Comma-separated hostnames, without schemes or ports | Empty list |
+| `SMS_DELIVERY_BACKEND` | Dotted Python class implementing the SMS adapter | Console adapter when debug is enabled; otherwise empty |
+| `VOICE_DELIVERY_BACKEND` | Dotted Python class implementing the voice adapter | Mock adapter when debug is enabled; otherwise empty |
 
 The example enables local debugging and allows `localhost`, `127.0.0.1` and
 `[::1]`. `DJANGO_DEBUG` accepts true/false, 1/0, yes/no or on/off, regardless of
@@ -189,7 +193,9 @@ OTP rules live in `accounts/services.py`, separately from views:
 - Resends have a 60-second cooldown and invalidate earlier outstanding codes,
   including verified registrations that have not yet been completed.
 - Verification is bound to the exact normalized phone number and is single-use.
-- The verified registration grant also expires and can create an account once.
+- The vendor registration grant expires with the original OTP deadline and can
+  create an account once. A verified patient registration has a separate 30-minute
+  window starting at successful OTP verification.
 - The record and phone are bound to the browser's registration session. A session
   flag alone cannot bypass the database verification check.
 - Registration and credential errors avoid disclosing whether an account exists.
@@ -204,17 +210,32 @@ redisplayed on validation errors.
 
 | Setting | Default | Purpose |
 | --- | --- | --- |
-| `OTP_TTL_SECONDS` | `300` | Code and registration-grant lifetime |
+| `OTP_TTL_SECONDS` | `300` | OTP lifetime from issuance; also the vendor registration deadline |
+| `PATIENT_REGISTRATION_TTL_SECONDS` | `1800` | Patient registration lifetime from successful OTP verification |
 | `OTP_MAX_ATTEMPTS` | `5` | Maximum failed code attempts |
 | `OTP_RESEND_COOLDOWN_SECONDS` | `60` | Minimum interval between sends |
-| `OTP_DELIVERY_BACKEND` | Console backend only when debug is enabled | Replaceable delivery class with `send(phone_number, code)` |
+| `SMS_DELIVERY_BACKEND` | `communications.adapters.ConsoleSMSAdapter` when debug is enabled | Shared SMS transport with `send(SMSMessage)` |
 
 The timing/attempt settings can be set in `.env` and must be positive integers.
-The console backend prints codes only when `DEBUG=True`, and refuses delivery
-when debugging is disabled even if explicitly configured. With `DEBUG=False`,
-the default delivery setting is empty and registration reports that verification
-is unavailable. **Production SMS verification requires a future provider
-integration.** No external SMS provider is integrated in this phase.
+The SMS console adapter prints the recipient, complete message body (including
+the generated OTP), purpose, UTC timestamp and verification reference to the
+Django terminal. Every SMS submitted to this adapter is printed, including
+non-OTP messages. Output is explicitly labelled simulated; it is never a claim
+of delivery to a phone. Protect development terminal output and use synthetic
+data for demonstrations.
+
+The adapter requires `DEBUG=True` at construction and on every send. With
+`DEBUG=False`, the default delivery setting is empty and registration reports
+that verification is unavailable. Explicitly selecting a development adapter
+cannot bypass the guard. A transport exception invalidates that OTP grant and
+returns an unavailable error without exposing the provider payload or OTP through
+an HTTP error page. **Production SMS verification requires a future provider
+integration.** Baton continues to generate, hash, expire and verify its own OTPs.
+
+For old local configuration, `OTP_DELIVERY_BACKEND` remains a fallback when
+`SMS_DELIVERY_BACKEND` is unset. The old `accounts.delivery.ConsoleOTPBackend`
+path is mapped to the new SMS console adapter. New configuration and provider
+adapters should use `SMS_DELIVERY_BACKEND` and the message interface above.
 
 ## Patient management
 
@@ -222,6 +243,10 @@ Each patient has one global UUID-based record, matched by their normalized mobil
 number. A record includes the required name, date of birth and preferred language,
 optional sex and alternative contact number, and explicit SMS and voice consent
 with audit timestamps. Patients do not receive application accounts.
+New registrations select English or Nigerian Pidgin for voice reminders.
+Historical language values are preserved; supported English/Pidgin aliases are
+recognized, while an unsupported language produces an inspectable failed attempt
+without silently choosing another language.
 
 Vendors see only patients associated with their account. Registering a new patient
 requires patient-phone OTP verification and automatically creates the first vendor
@@ -230,6 +255,15 @@ is created. The vendor must confirm that the patient agreed to the association a
 sharing of relevant Baton history; Baton records the confirming vendor and time.
 All associated vendors can then see the patient's complete Baton BP and follow-up
 history, while each historical entry retains its original vendor attribution.
+
+The patient's OTP must be verified within five minutes of generation. After that
+successful verification, the vendor has 30 minutes to submit the patient details;
+time spent waiting for the code does not consume this registration window. The
+server derives the deadline from the stored verification timestamp and enforces
+it again when claiming the grant during patient creation. Resubmitting the form
+does not extend the deadline. An expired, replaced or already-completed grant
+cannot create another patient, and an unverified code never receives the longer
+window. OTP single-use checks, attempt limits and resend cooldowns still apply.
 
 The main routes are:
 
@@ -256,6 +290,8 @@ the new measurement; administrators can deactivate it and create a new versioned
 interval in Django admin. Existing follow-ups retain their original scheduled date
 and rule/version. A vendor can accept the proposed date or choose a manual date,
 and only one active follow-up is allowed per patient.
+An explicit manual choice remains manual even when its date matches the automatic
+proposal. Draft measurements and follow-ups are saved only after confirmation.
 
 Changing an active follow-up date creates a recorded manual schedule revision and
 recalculates its outstanding reminders. Measurement confirmation uses an operation
@@ -278,16 +314,112 @@ follow-up becoming overdue creates one dashboard notification for the vendor who
 scheduled it; after the final overdue reminder, all associated vendors can see that
 the patient requires attention.
 
-No SMS or voice provider and no background worker are integrated. In Django admin,
-select reminder schedules and run **Process all due reminder schedules now** to
-exercise the provider-independent processing boundary. The action records processing
-only; it does not send messages and leaves delivery as not attempted.
+Routine patient reminders use **voice only**, independently of SMS consent. Voice
+schedules represent business events and are created even when consent is absent;
+current voice consent is required before invoking an adapter. Missing consent
+produces a skipped attempt with a reason. OTP SMS verification retains its separate
+registration semantics and does not depend on reminder consent.
 
-## Phase 3 administration
+`patients.services.send_patient_sms()` is the consent boundary for any non-OTP
+patient SMS added to an authorized business workflow. It reads the current patient
+record, targets that patient's primary phone, and raises `PermissionDenied` without
+invoking the adapter when SMS consent is absent. It is not used for routine reminders.
+
+## Voice content and mock delivery
+
+`communications/content.py` holds a reusable catalog of recording references and
+prototype scripts. Each category has English (`recordings/en/`) and Nigerian
+Pidgin (`recordings/pcm/`) references:
+
+| Reminder event | Voice category | Recording filename in each language directory |
+| --- | --- | --- |
+| Follow-up date | Scheduled visit | `scheduled-visit-v1.mp3` |
+| Two days overdue | First overdue | `first-overdue-v1.mp3` |
+| Four days overdue | Final overdue | `final-overdue-v1.mp3` |
+| First between-visit reminder | Medication | `medication-v1.mp3` |
+| Second between-visit reminder | General health | `general-health-v1.mp3` |
+
+A shorter interval has only the first between-visit reminder. The existing timing
+rules are unchanged. Medication scripts refer patients to instructions already
+given by their healthcare professional; the catalog does not diagnose, interpret
+BP or specify medication or dosage.
+
+**The references are placeholders; actual recordings are not included.** Register
+real, reviewed recordings by updating the corresponding catalog entry's reference
+and script. The resolver selects content from the reminder event and current patient
+language; scheduling contains no provider-specific content. Delivery uses prerecorded
+assets, with no text-to-speech.
+
+`communications.adapters.MockVoiceAdapter.invoke(VoiceRequest)` prints the recipient,
+category, selected language, recording reference, timestamp and idempotency reference
+to the terminal, explicitly marked **MOCK / NOT A REAL CALL**. It performs no playback,
+streaming or phone call and returns `simulated`. Like the SMS console adapter, it
+rejects use when `DEBUG=False`, including after it has already been instantiated.
+
+## Manual reminder processing and communication records
+
+Log in to `/admin/` with an administrator, open **Reminder schedules**, select at
+least one row and run **Process all due reminder schedules now (development delivery
+is simulated)**. The selection makes Django's action available; the action processes
+**all currently due active schedules**, retaining the existing global trigger.
+Runserver shows mock invocations, and the admin summary reports processed, simulated,
+delivered, skipped and failed counts plus vendor notifications and attention flags.
+The defaults always report zero real deliveries. No background worker is required.
+
+Inspect **Communication attempts** in admin for the reminder, channel, intended
+recipient, category, selected recording/language, processing timestamps, adapter,
+delivery mode, outcome and reason. History is read-only. Vendors can see the reminder
+and communication outcomes in the patient's shared follow-up history. Administrative
+summaries contain counts, without patient details.
+
+Reminder processing state is separate from communication outcome:
+
+| Communication outcome | Meaning |
+| --- | --- |
+| Processing | A durable attempt has been reserved; its outcome is not yet known |
+| Simulated | Development adapter logged an invocation; nothing was delivered |
+| Skipped | A consent or follow-up state check prevented invocation |
+| Failed | Content, adapter configuration or transport failed |
+| Delivered | Reserved for an adapter that explicitly confirms actual delivery |
+
+`patients.services.process_due_reminders(at=None)` is also callable from Django
+code or a future scheduler. It uses existing reminder dates/events, reserves one
+communication attempt per reminder under a transaction and a database uniqueness
+constraint, and rechecks current consent, fulfilment and schedule revision before
+invocation. SQLite IMMEDIATE transactions serialize competing writers. A second
+manual run does not repeat simulated, delivered, failed or skipped attempts.
+Failures preserve reminders and selected recording details; provider exception
+payloads are omitted from stored reasons.
+
+This prototype deliberately makes at most one invocation per reminder. If the
+process stops after reservation, the attempt can remain `Processing`; inspect it
+before deciding how to reconcile it. It is not automatically retried because
+delivery might have occurred before interruption. There is no automatic retry UI,
+queue, delivery receipt handler or claim of exactly-once external delivery.
+
+## Future provider integration
+
+The ordinary Python `communications/` package adds no Django app or dependency:
+
+1. Implement `SMSAdapter.send(SMSMessage)` or `VoiceAdapter.invoke(VoiceRequest)`
+   from `communications/adapters.py`.
+2. Return a `DeliveryResult` from `communications/payloads.py`, with adapter/mode
+   information and a provider reference. Report `delivered` only after confirmed
+   actual delivery; never use it merely for accepting a request.
+3. Configure the class through `SMS_DELIVERY_BACKEND` or `VOICE_DELIVERY_BACKEND`,
+   and supply credentials required by that implementation through environment variables.
+
+The provider transports Baton's SMS payload or invokes the selected recording.
+It does not generate/verify OTPs or choose reminder dates, content or consent.
+No external provider, credentials, USSD or vendor SMS command is integrated here.
+An asynchronous provider would also need explicit pending/receipt handling before
+it could report confirmed delivery; this prototype has no such integration.
+
+## Administration
 
 Django admin provides patient and vendor-association management, read-only BP and
 follow-up history, versioned follow-up rule configuration, schedule-change history,
-reminder schedules and vendor notifications. Vendor accounts never receive staff
+reminder schedules, communication attempts and vendor notifications. Vendor accounts never receive staff
 privileges through these workflows.
 
 ## Database transition from Phase 1
@@ -301,6 +433,12 @@ The project and existing Phase 1 code were extended in place.
 
 Fresh installations apply all migrations normally with `manage.py migrate`.
 Existing Phase 2 installations use that same command for future migrations.
+Phase 3 installations also run `uv run python manage.py migrate`. The Phase 4
+migrations add communication outcomes/attempts and prepare pending events for voice
+processing. Historical SMS rows remain in place; pending SMS rows are cancelled,
+outstanding active events receive voice rows as needed, and previously processed,
+cancelled or fulfilled events are not replayed. Follow-up dates, measurements and
+historical language values are preserved.
 A populated database still using `auth.User` needs a separate data-preserving
 migration plan; do not delete or reset it.
 
@@ -311,14 +449,20 @@ uv run python manage.py test
 uv run python manage.py check
 uv run python manage.py makemigrations --check --dry-run
 uv run python manage.py findstatic core/css/site.css core/images/baton.svg
+uv run python manage.py collectstatic --noinput
 ```
 
 The complete suite covers the earlier landing, configuration and authentication
 behavior as well as patient registration and discovery, OTP purpose isolation,
 association consent, access control, immutable measurements, centralized follow-up
 fulfilment, rule versioning, manual scheduling, reminder timing and recalculation,
-overdue visibility, cancellation and idempotency. Tests use a separate Django test
-database and mocked OTP delivery, without external SMS or voice calls.
+overdue visibility, cancellation and idempotency. Communication coverage includes
+complete SMS output, hashed/non-disclosed OTPs, production guards, all bilingual
+recording references, consent, failed/skipped/simulated outcomes, concurrent manual
+processing, changes between reservation and invocation, and the Phase 3 data transition.
+Tests use the separate file-backed `test.sqlite3`, which Django creates and destroys,
+so concurrency exercises the same SQLite locking as local development. The application
+database is not used for tests. Delivery is mocked or captured; no external calls occur.
 
 ## Static files
 
@@ -356,6 +500,7 @@ baton/
   config/                    Django settings, URLs, WSGI and ASGI entry points
   accounts/                  Custom user, authentication, OTP services, forms and tests
     migrations/
+  communications/            Provider-neutral SMS/voice payloads, adapters and content catalog
   patients/                  Patients, associations, BP, follow-ups and reminders
     migrations/
     tests/

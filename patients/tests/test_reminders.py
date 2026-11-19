@@ -6,6 +6,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from patients.models import (
+    CommunicationAttempt,
     FollowUp,
     FollowUpRule,
     FollowUpScheduleChange,
@@ -13,6 +14,7 @@ from patients.models import (
     VendorNotification,
     VendorPatient,
 )
+from communications.payloads import DeliveryOutcome, DeliveryResult
 from patients.services import (
     create_reminder_schedules,
     process_due_reminders,
@@ -136,13 +138,13 @@ class ReminderSchedulingTests(TestCase):
         followup.refresh_from_db()
         self.assertEqual(followup.scheduled_date, original_date)
 
-    def test_each_consented_channel_has_an_independent_provider_neutral_schedule(self):
+    def test_routine_reminders_are_voice_only_and_scheduled_independently_of_consent(self):
         patient = self.patient(sms_consent=True, voice_consent=True)
         followup = save_measurement(patient, self.vendor).next_followup
-        self.assertEqual(followup.reminders.count(), 10)
+        self.assertEqual(followup.reminders.count(), 5)
         self.assertEqual(
             set(followup.reminders.values_list("channel", flat=True)),
-            {ReminderSchedule.Channel.SMS, ReminderSchedule.Channel.VOICE},
+            {ReminderSchedule.Channel.VOICE},
         )
         self.assertFalse(
             followup.reminders.exclude(
@@ -159,7 +161,15 @@ class ReminderProcessingTests(TestCase):
         cls.other_vendor = make_vendor("08012345679", "Second Pharmacy")
 
     def setUp(self):
-        self.patient = make_patient(vendor=self.scheduler)
+        self.voice_adapter = patch("patients.services.get_voice_adapter").start()
+        self.addCleanup(patch.stopall)
+        self.voice_adapter.return_value.invoke.return_value = DeliveryResult(
+            outcome=DeliveryOutcome.SIMULATED,
+            adapter="tests.MockVoiceAdapter",
+            delivery_mode="development_mock",
+            provider_reference="mock-reference",
+        )
+        self.patient = make_patient(vendor=self.scheduler, voice_consent=True)
         VendorPatient.objects.create(patient=self.patient, vendor=self.other_vendor)
         self.followup = save_measurement(
             self.patient,
@@ -259,7 +269,7 @@ class ReminderProcessingTests(TestCase):
             4,
         )
 
-    def test_repeated_processing_never_duplicates_schedules_or_marks_delivery_sent(self):
+    def test_repeated_processing_never_duplicates_schedules_or_claims_real_delivery(self):
         count = ReminderSchedule.objects.count()
         at = self.followup.scheduled_date + timedelta(days=4)
         first = process_due_reminders(at=at)
@@ -267,20 +277,33 @@ class ReminderProcessingTests(TestCase):
         self.assertGreater(first["processed"], 0)
         self.assertEqual(second["processed"], 0)
         self.assertEqual(ReminderSchedule.objects.count(), count)
+        self.assertEqual(CommunicationAttempt.objects.count(), first["processed"])
         self.assertFalse(
-            ReminderSchedule.objects.exclude(
-                delivery_status=ReminderSchedule.DeliveryStatus.NOT_ATTEMPTED
+            CommunicationAttempt.objects.exclude(
+                outcome=CommunicationAttempt.Outcome.SIMULATED
+            ).exists()
+        )
+        self.assertFalse(
+            ReminderSchedule.objects.filter(
+                delivery_status=ReminderSchedule.DeliveryStatus.DELIVERED
             ).exists()
         )
 
-    def test_revoked_consent_cancels_due_rows_but_still_flags_vendor_attention(self):
-        self.patient.sms_consent = False
+    def test_revoked_consent_skips_due_rows_but_still_flags_vendor_attention(self):
+        self.patient.voice_consent = False
         self.patient.save()
         result = process_due_reminders(
             at=self.followup.scheduled_date + timedelta(days=4)
         )
-        self.assertEqual(result["processed"], 0)
-        self.assertEqual(result["cancelled"], 4)
+        self.assertEqual(result["processed"], 4)
+        self.assertEqual(result["skipped"], 4)
+        self.assertEqual(result["simulated"], 0)
+        self.assertFalse(self.voice_adapter.return_value.invoke.called)
+        self.assertFalse(
+            CommunicationAttempt.objects.exclude(
+                outcome=CommunicationAttempt.Outcome.SKIPPED
+            ).exists()
+        )
         self.followup.refresh_from_db()
         self.assertTrue(self.followup.attention_required)
 

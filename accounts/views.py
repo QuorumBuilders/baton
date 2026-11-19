@@ -14,7 +14,7 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.debug import sensitive_post_parameters
 from django.views.decorators.http import require_http_methods, require_POST
 
-from .delivery import DeliveryUnavailable
+from communications.adapters import DeliveryUnavailable
 from .forms import OTPVerificationForm, VendorLoginForm, VendorPasswordForm, VendorRegistrationForm
 from .models import User
 from .services import (

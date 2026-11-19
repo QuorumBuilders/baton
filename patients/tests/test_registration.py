@@ -1,19 +1,26 @@
-from datetime import date
+from datetime import date, timedelta
 from unittest.mock import Mock, patch
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from accounts.models import PhoneVerification
+from accounts.services import VerificationError, get_verified_registration, issue_otp, verify_otp
 from patients.models import Patient, VendorPatient
+from patients.services import complete_patient_registration
 from patients.views import REGISTRATION_KEY
 
 from .helpers import make_patient, make_vendor
 
 
-@override_settings(PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"])
+@override_settings(
+    PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"],
+    OTP_TTL_SECONDS=300,
+    PATIENT_REGISTRATION_TTL_SECONDS=1800,
+)
 class PatientRegistrationTests(TestCase):
     code = "583029"
 
@@ -74,6 +81,132 @@ class PatientRegistrationTests(TestCase):
         self.assertTrue(patient.vendors.filter(pk=self.vendor.pk).exists())
         verification.refresh_from_db()
         self.assertIsNotNone(verification.completed_at)
+
+    def delayed_verification(self):
+        issued_at = timezone.now()
+        with patch("accounts.services.timezone.now", return_value=issued_at):
+            verification = self.start()
+        verified_at = issued_at + timedelta(seconds=290)
+        with patch("accounts.services.timezone.now", return_value=verified_at):
+            self.verify()
+        verification.refresh_from_db()
+        return verification, issued_at, verified_at
+
+    def test_patient_details_have_30_minutes_from_verification_even_after_otp_expiry(self):
+        verification, issued_at, verified_at = self.delayed_verification()
+        self.assertEqual(verification.expires_at, issued_at + timedelta(seconds=300))
+        self.assertEqual(verification.consumed_at, verified_at)
+        with patch("accounts.services.timezone.now", return_value=verified_at + timedelta(seconds=1799)):
+            response = self.details()
+        patient = Patient.objects.get()
+        self.assertRedirects(response, reverse("patients:detail", args=[patient.pk]))
+        self.assertEqual(VendorPatient.objects.count(), 1)
+        self.assertEqual(PhoneVerification.objects.count(), 1)
+        self.delivery.send.assert_called_once()
+        verification.refresh_from_db()
+        self.assertIsNotNone(verification.completed_at)
+        self.assertEqual(verification.expires_at, issued_at + timedelta(seconds=300))
+
+    def test_patient_registration_expires_exactly_30_minutes_after_verification(self):
+        verification, _, verified_at = self.delayed_verification()
+        with patch("accounts.services.timezone.now", return_value=verified_at + timedelta(minutes=30)):
+            response = self.details()
+        self.assertRedirects(response, reverse("patients:verify"))
+        self.assertFalse(Patient.objects.exists())
+        self.assertFalse(VendorPatient.objects.exists())
+        verification.refresh_from_db()
+        self.assertIsNone(verification.completed_at)
+        self.delivery.send.assert_called_once()
+
+    def test_patient_otp_still_expires_after_five_minutes_and_cannot_gain_a_registration_window(self):
+        issued_at = timezone.now()
+        with patch("accounts.services.timezone.now", return_value=issued_at):
+            verification = self.start()
+        with patch("accounts.services.timezone.now", return_value=issued_at + timedelta(minutes=5)):
+            with self.assertRaises(VerificationError):
+                verify_otp(verification.pk, verification.phone_number, self.code, purpose="patient")
+            with self.assertRaises(VerificationError):
+                get_verified_registration(verification.pk, verification.phone_number, purpose="patient")
+            response = self.details()
+        self.assertRedirects(response, reverse("patients:verify"))
+        self.assertFalse(Patient.objects.exists())
+        verification.refresh_from_db()
+        self.assertIsNone(verification.consumed_at)
+
+    def test_form_validation_errors_do_not_restart_the_registration_window(self):
+        verification, _, verified_at = self.delayed_verification()
+        with patch("accounts.services.timezone.now", return_value=verified_at + timedelta(minutes=20)):
+            response = self.details(first_name="")
+        self.assertIn("first_name", response.context["form"].errors)
+        verification.refresh_from_db()
+        self.assertEqual(verification.consumed_at, verified_at)
+        with patch("accounts.services.timezone.now", return_value=verified_at + timedelta(minutes=30)):
+            response = self.details()
+        self.assertRedirects(response, reverse("patients:verify"))
+        self.assertFalse(Patient.objects.exists())
+
+    def test_transactional_claim_rejects_grant_that_expires_after_the_initial_check(self):
+        verification, _, verified_at = self.delayed_verification()
+        # Simulate a successful read just before expiry, followed by an expired
+        # grant when the creation transaction performs its conditional claim.
+        with patch("patients.services.get_verified_registration", return_value=verification):
+            with patch("patients.services.timezone.now", return_value=verified_at + timedelta(minutes=30)):
+                with self.assertRaises(VerificationError):
+                    self.create_with_grant(verification)
+        self.assertFalse(Patient.objects.exists())
+        self.assertFalse(VendorPatient.objects.exists())
+
+    def create_with_grant(self, verification, **overrides):
+        details = {
+            "first_name": "Prototype", "last_name": "Patient",
+            "date_of_birth": date(1990, 1, 1), "preferred_language": "English",
+            "sms_consent": False, "voice_consent": False,
+        }
+        details.update(overrides)
+        return complete_patient_registration(self.vendor, verification.pk, verification.phone_number, details)
+
+    def test_new_patient_otp_invalidates_a_verified_grant_during_the_longer_window(self):
+        verification, _, verified_at = self.delayed_verification()
+        with patch("accounts.services.timezone.now", return_value=verified_at + timedelta(minutes=10)):
+            with self.captureOnCommitCallbacks(execute=True):
+                replacement = issue_otp(verification.phone_number, purpose="patient")
+            with self.assertRaises(VerificationError):
+                self.create_with_grant(verification)
+            with self.assertRaises(VerificationError):
+                self.create_with_grant(replacement)
+        self.assertFalse(Patient.objects.exists())
+        self.assertEqual(self.delivery.send.call_count, 2)
+
+    def test_verified_patient_code_cannot_be_verified_again_during_registration_window(self):
+        verification, _, verified_at = self.delayed_verification()
+        with patch("accounts.services.timezone.now", return_value=verified_at + timedelta(minutes=10)):
+            with self.assertRaises(VerificationError):
+                verify_otp(verification.pk, verification.phone_number, self.code, purpose="patient")
+            get_verified_registration(verification.pk, verification.phone_number, purpose="patient")
+
+    def test_completed_patient_grant_cannot_create_another_patient(self):
+        verification, _, verified_at = self.delayed_verification()
+        with patch("accounts.services.timezone.now", return_value=verified_at + timedelta(minutes=10)):
+            self.create_with_grant(verification)
+            with self.assertRaises(VerificationError):
+                self.create_with_grant(verification)
+        self.assertEqual(Patient.objects.count(), 1)
+        self.assertEqual(VendorPatient.objects.count(), 1)
+
+    def test_registration_window_does_not_allow_another_phone_or_otp_purpose(self):
+        verification, _, verified_at = self.delayed_verification()
+        with patch("accounts.services.timezone.now", return_value=verified_at + timedelta(minutes=10)):
+            for phone, purpose in (("08050675449", "patient"), (verification.phone_number, "vendor")):
+                with self.subTest(phone=phone, purpose=purpose):
+                    with self.assertRaises(VerificationError):
+                        get_verified_registration(verification.pk, phone, purpose=purpose)
+
+    def test_patient_registration_session_remains_bound_to_the_verifying_vendor(self):
+        self.delayed_verification()
+        self.client.force_login(make_vendor("08012345679", "Second Pharmacy"))
+        response = self.details()
+        self.assertRedirects(response, reverse("patients:register"))
+        self.assertFalse(Patient.objects.exists())
 
     def test_registration_details_cannot_skip_otp_verification(self):
         verification = self.start()

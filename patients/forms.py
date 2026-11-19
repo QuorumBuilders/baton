@@ -2,6 +2,7 @@ from django import forms
 from django.utils import timezone
 
 from accounts.forms import PhoneNumberField
+from .models import Patient
 
 
 class PatientLookupForm(forms.Form):
@@ -13,9 +14,12 @@ class PatientRegistrationForm(forms.Form):
     last_name = forms.CharField(max_length=150, widget=forms.TextInput(attrs={"autocomplete": "family-name"}))
     date_of_birth = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
     sex = forms.CharField(max_length=30, required=False)
-    preferred_language = forms.CharField(max_length=80)
+    preferred_language = forms.ChoiceField(
+        choices=Patient.PreferredLanguage.choices,
+        help_text="Voice reminders are available in English and Nigerian Pidgin.",
+    )
     sms_consent = forms.TypedChoiceField(
-        label="Has the patient explicitly agreed to SMS reminders?",
+        label="Has the patient explicitly agreed to SMS communications?",
         choices=[("yes", "Yes"), ("no", "No")], coerce=lambda value: value == "yes",
         widget=forms.RadioSelect,
     )

@@ -193,6 +193,12 @@ class FollowUpCoordinationTests(TestCase):
         self.assertEqual(followup.followup_type, FollowUp.Type.MANUAL)
         self.assertIsNone(followup.scheduling_rule)
 
+    def test_manual_choice_remains_manual_when_date_matches_automatic_proposal(self):
+        _, proposed = automatic_proposal()
+        followup = save_measurement(self.patient, self.first_vendor, manual_date=proposed).next_followup
+        self.assertEqual(followup.followup_type, FollowUp.Type.MANUAL)
+        self.assertIsNone(followup.scheduling_rule)
+
     def test_rule_changes_do_not_rewrite_existing_followups(self):
         measurement = save_measurement(self.patient, self.first_vendor)
         followup = measurement.next_followup

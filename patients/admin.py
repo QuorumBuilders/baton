@@ -2,6 +2,7 @@ from django.contrib import admin, messages
 
 from .models import (
     BloodPressureMeasurement,
+    CommunicationAttempt,
     FollowUp,
     FollowUpRule,
     FollowUpScheduleChange,
@@ -116,7 +117,7 @@ class FollowUpScheduleChangeAdmin(ReadOnlyHistoryAdmin):
 
 
 @admin.action(
-    description="Process all due reminder schedules now (no messages are sent)",
+    description="Process all due reminder schedules now (development delivery is simulated)",
     permissions=["view"],
 )
 def process_due_reminder_schedules(modeladmin, request, queryset):
@@ -124,11 +125,12 @@ def process_due_reminder_schedules(modeladmin, request, queryset):
     modeladmin.message_user(
         request,
         (
-            f"Processed {result['processed']} schedule(s), cancelled "
-            f"{result['cancelled']}, created {result['vendor_notifications']} vendor "
-            f"notification(s), and added {result['attention_flags']} attention flag(s)."
+            f"Processed {result['processed']} reminder(s): {result['simulated']} simulated, "
+            f"{result['delivered']} delivered, {result['skipped']} skipped and "
+            f"{result['failed']} failed. Created {result['vendor_notifications']} vendor "
+            f"notification(s) and added {result['attention_flags']} attention flag(s)."
         ),
-        level=messages.SUCCESS,
+        level=messages.WARNING if result["failed"] else messages.SUCCESS,
     )
 
 
@@ -167,4 +169,23 @@ class VendorNotificationAdmin(ReadOnlyHistoryAdmin):
         "vendor__phone_number",
         "patient__first_name",
         "patient__last_name",
+    )
+
+
+@admin.register(CommunicationAttempt)
+class CommunicationAttemptAdmin(ReadOnlyHistoryAdmin):
+    list_display = (
+        "reminder",
+        "channel",
+        "category",
+        "outcome",
+        "delivery_mode",
+        "attempted_at",
+    )
+    list_filter = ("channel", "category", "outcome", "delivery_mode")
+    search_fields = (
+        "reminder__idempotency_key",
+        "recipient",
+        "provider_reference",
+        "recording_reference",
     )
